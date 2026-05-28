@@ -19,7 +19,7 @@ import { usePvpStore } from "@/stores/pvpStore";
 import { send, subscribe } from "@/game/network/peerNetwork";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
 import { useOpponentFlashStore } from "@/stores/opponentFlashStore";
-import { playMundoHit, playMundoFlash } from "@/game/audio/mundoAudio";
+import { playMundoHit, playMundoFlash, playMundoQCast } from "@/game/audio/mundoAudio";
 import { loadTexture } from "@/game/animation/AnimatedModel";
 import { spawnForRole } from "@/game/entities/PvpWall";
 import { selectedChromaTexturePath } from "@/stores/chromaStore";
@@ -60,6 +60,9 @@ export function PvpSync() {
 
   const lastSentRef = useRef(0);
   const opponentCleaverActiveUntilRef = useRef(0);
+  // castStartedAt of the opponent throw whose release sound we've already played,
+  // so the Q cast SFX fires once per throw (on the windup→flight transition).
+  const opponentThrowSoundForRef = useRef(0);
 
   const opponentCleaverGroupRef = useRef<Group>(null);
   const opponentCleaverGhostRefs = useRef<Group[]>([]);
@@ -189,10 +192,19 @@ export function PvpSync() {
       const cx = c.px;
       const cz = c.pz;
       const yaw = Math.atan2(c.dirX, c.dirZ);
-      opponentCleaverGroupRef.current.visible = true;
+      // Only show the projectile in flight. During windup the blade is still in
+      // Mundo's hand (the throw animation covers that beat); rendering it here
+      // made the cleaver pop to the hand before the cast — the "teleport" glitch.
+      const inFlight = c.phase === "flight";
+      opponentCleaverGroupRef.current.visible = inFlight;
       opponentCleaverGroupRef.current.position.set(cx, 1.0, cz);
       opponentCleaverGroupRef.current.rotation.set(0, yaw, 0);
-      if (c.phase === "flight") {
+      if (inFlight) {
+        // Play the release SFX once, the moment this throw enters flight.
+        if (c.castStartedAt !== opponentThrowSoundForRef.current) {
+          opponentThrowSoundForRef.current = c.castStartedAt;
+          playMundoQCast([cx, 1.0, cz]);
+        }
         updateOpponentCleaverGhosts(opponentCleaverGhostRefs.current, c, cx, cz, yaw);
       } else {
         hideGroups(opponentCleaverGhostRefs.current);

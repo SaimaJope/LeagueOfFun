@@ -59,13 +59,19 @@ export function PvpLobby() {
     useChromaStore.getState().setChroma(id);
   }
 
-  async function copyRoomCode() {
+  function inviteLink() {
+    const base = `${window.location.origin}${window.location.pathname}`;
+    return `${base}?join=${roomCode}`;
+  }
+
+  async function copyInviteLink() {
     if (!roomCode) return;
+    const link = inviteLink();
     try {
-      await navigator.clipboard.writeText(roomCode);
+      await navigator.clipboard.writeText(link);
     } catch {
       const el = document.createElement("textarea");
-      el.value = roomCode;
+      el.value = link;
       el.setAttribute("readonly", "");
       el.style.position = "fixed";
       el.style.opacity = "0";
@@ -87,7 +93,7 @@ export function PvpLobby() {
       {role === "none" && (
         <>
           <p style={{ color: "#aab4c5", marginTop: 0 }}>
-            Host a room and share the code with a friend, or join an existing one.
+            Host a room and share the invite link with a friend, or join with a code.
           </p>
           <div style={{ display: "flex", gap: 8 }}>
             <button style={primaryBtn} onClick={() => hostMatch()}>
@@ -126,8 +132,8 @@ export function PvpLobby() {
               <div style={codeRow}>
                 <span style={{ fontSize: 12, color: "#7d8aa1" }}>Code: </span>
                 <span style={codeChip}>{roomCode}</span>
-                <button style={copyBtn} onClick={copyRoomCode}>
-                  {copied ? "Copied" : "Copy"}
+                <button style={copyBtn} onClick={copyInviteLink}>
+                  {copied ? "Link copied" : "Copy link"}
                 </button>
               </div>
             )}

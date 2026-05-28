@@ -18,9 +18,39 @@ import { VolumeSlider } from "@/game/ui/VolumeSlider";
 import { LoadingScreen } from "@/game/ui/LoadingScreen";
 import { FpsCounter } from "@/game/ui/FpsCounter";
 import { useTrainerStore } from "@/stores/trainerStore";
+import { useEffect, useRef } from "react";
+import { joinMatch } from "@/game/network/peerNetwork";
+import { usePvpStore } from "@/stores/pvpStore";
 
 export function App() {
   const trainer = useTrainerStore((s) => s.trainer);
+  const setTrainer = useTrainerStore((s) => s.setTrainer);
+  const autoJoinedRef = useRef(false);
+
+  // Shareable invite links: opening "…/?join=CODE" drops the friend straight
+  // into PvP and auto-connects to the host's room, no code typing required.
+  useEffect(() => {
+    if (autoJoinedRef.current) return;
+    let code = "";
+    try {
+      code = (new URLSearchParams(window.location.search).get("join") ?? "").trim();
+    } catch {
+      /* ignore */
+    }
+    if (!code) return;
+    autoJoinedRef.current = true;
+    setTrainer("pvp");
+    // Strip the param so a later refresh doesn't silently re-dial a dead room.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("join");
+      window.history.replaceState({}, "", url.toString());
+    } catch {
+      /* ignore */
+    }
+    if (usePvpStore.getState().role === "none") joinMatch(code);
+  }, [setTrainer]);
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       {trainer === "hookTrainer" && <Scene />}
