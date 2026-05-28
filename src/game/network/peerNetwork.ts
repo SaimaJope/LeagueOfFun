@@ -54,9 +54,9 @@ const PEER_OPTIONS = {
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
-      // TURN servers (relay traffic when direct P2P fails)
-      { urls: "turn:numb.viagenie.ca", username: "webrtc@live.com", credential: "webrtcclient" },
-      { urls: "turn:numb.viagenie.ca?transport=tcp", username: "webrtc@live.com", credential: "webrtcclient" },
+      // No TURN servers for now: STUN-only. Works same-network and on most
+      // home NATs. Add a TURN server (with valid username/credential) later
+      // for guaranteed cross-network relay (strict/symmetric NAT, cellular).
     ],
   },
 };
