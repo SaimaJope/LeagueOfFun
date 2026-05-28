@@ -1,35 +1,52 @@
+import { useMemo } from "react";
+import { Box3, Vector3, type Group } from "three";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { useModel } from "@/game/assets/modelLoader";
 import { usePvpStore } from "@/stores/pvpStore";
 import { DODGEBALL_ARENA_RADIUS } from "@/game/config/dodgeball.config";
 
 export const WALL_THICKNESS = 0.4;
 export const WALL_HEIGHT = 1.6;
 export const WALL_HALF_LENGTH = DODGEBALL_ARENA_RADIUS - 0.6;
+export const PVP_WARD_WALL_MODEL = "/assets/models/environment/vision_ward.glb";
+
+const WARD_COUNT = 5;
+const WARD_VISUAL_HEIGHT = WALL_HEIGHT * 1.35;
 
 /**
- * Wall geometry. The orientation flag controls which axis the wall runs along:
+ * Ward fence visual. The orientation flag controls which axis the fence runs along:
  *  - "horizontal": wall spans the X axis, players spawn at +Z and -Z.
  *  - "vertical":   wall spans the Z axis, players spawn at +X and -X.
- * Use {@link blocksRay} for projectile collision and {@link spawnForRole}
+ * Use {@link isInsideWall} for collision and {@link spawnForRole}
  * for spawn positions.
  */
 export function PvpWall() {
   const orientation = usePvpStore((s) => s.settings.wallOrientation);
+  const state = useModel(PVP_WARD_WALL_MODEL);
   const isHorizontal = orientation === "horizontal";
-  const size: [number, number, number] = isHorizontal
-    ? [WALL_HALF_LENGTH * 2, WALL_HEIGHT, WALL_THICKNESS]
-    : [WALL_THICKNESS, WALL_HEIGHT, WALL_HALF_LENGTH * 2];
+  const wards = useMemo(() => {
+    if (state.status !== "ready") return [];
+    return Array.from({ length: WARD_COUNT }, () => createWardVisual(state.model.scene));
+  }, [state]);
 
   return (
     <group>
-      <mesh position={[0, WALL_HEIGHT / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={size} />
-        <meshStandardMaterial color="#5d6680" roughness={0.7} metalness={0.15} />
-      </mesh>
-      {/* Top capping strip for visual readability */}
-      <mesh position={[0, WALL_HEIGHT + 0.005, 0]}>
-        <boxGeometry args={isHorizontal ? [WALL_HALF_LENGTH * 2, 0.04, WALL_THICKNESS + 0.06] : [WALL_THICKNESS + 0.06, 0.04, WALL_HALF_LENGTH * 2]} />
-        <meshBasicMaterial color="#8aa3d6" />
-      </mesh>
+      {wards.map((ward, index) => {
+        const along = -WALL_HALF_LENGTH + (WALL_HALF_LENGTH * 2 * index) / (WARD_COUNT - 1);
+        const position: [number, number, number] = isHorizontal
+          ? [along, 0, 0]
+          : [0, 0, along];
+        return (
+          <group
+            key={index}
+            position={position}
+            rotation={[0, isHorizontal ? Math.PI / 2 : 0, 0]}
+            scale={ward.scale}
+          >
+            <primitive object={ward.scene} />
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -52,4 +69,28 @@ export function spawnForRole(
     return [0, 0, role === "host" ? -offset : offset];
   }
   return [role === "host" ? -offset : offset, 0, 0];
+}
+
+function createWardVisual(source: Group) {
+  const scene = cloneSkeleton(source) as Group;
+  scene.updateMatrixWorld(true);
+
+  const box = new Box3().setFromObject(scene);
+  const center = new Vector3();
+  const size = new Vector3();
+  box.getCenter(center);
+  box.getSize(size);
+
+  scene.position.set(-center.x, -box.min.y, -center.z);
+  scene.traverse((object: any) => {
+    if (!object.isMesh) return;
+    object.castShadow = true;
+    object.receiveShadow = true;
+    object.frustumCulled = false;
+  });
+
+  return {
+    scene,
+    scale: WARD_VISUAL_HEIGHT / Math.max(size.y, 0.001),
+  };
 }

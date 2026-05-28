@@ -47,6 +47,7 @@ export function preloadAll() {
   }
   // Hook chain
   items.push({ kind: "model", path: "/assets/models/champions/chain.fbx" });
+  items.push({ kind: "model", path: "/assets/models/environment/vision_ward.glb" });
 
   // Textures
   for (const c of CHROMAS) {
