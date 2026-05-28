@@ -1,13 +1,13 @@
 import { create } from "zustand";
 
-export type Trainer = "hookTrainer" | "dodgeball";
+export type Trainer = "hookTrainer" | "dodgeball" | "pvp";
 
 const LS_KEY = "hooktrainer.trainer.v1";
 
 function loadPersisted(): Trainer {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw === "dodgeball" || raw === "hookTrainer") return raw;
+    if (raw === "dodgeball" || raw === "hookTrainer" || raw === "pvp") return raw;
   } catch {
     /* ignore */
   }

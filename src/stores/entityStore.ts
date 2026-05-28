@@ -23,6 +23,29 @@ export const playerEntity: MutableEntity = {
   hitSerial: 0,
 };
 
+/** Networked PvP opponent — driven by remote-state messages, never by local input. */
+export interface OpponentEntity extends MutableEntity {
+  /** Last known cleaver projectile (mirrored from the network). null = not in flight. */
+  cleaver: {
+    px: number;
+    pz: number;
+    dirX: number;
+    dirZ: number;
+    distance: number;
+    phase: "windup" | "flight";
+    castStartedAt: number;
+  } | null;
+}
+
+export const opponentEntity: OpponentEntity = {
+  position: [0, 0, 0],
+  velocity: [0, 0, 0],
+  rotationY: 0,
+  alive: true,
+  hitSerial: 0,
+  cleaver: null,
+};
+
 export const MAX_DUMMIES = 5;
 
 export const dummyEntities: MutableEntity[] = Array.from({ length: MAX_DUMMIES }, (_, index) =>

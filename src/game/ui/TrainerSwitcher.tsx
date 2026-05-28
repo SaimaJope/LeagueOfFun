@@ -3,6 +3,7 @@ import { useTrainerStore, type Trainer } from "@/stores/trainerStore";
 const OPTIONS: { id: Trainer; label: string }[] = [
   { id: "hookTrainer", label: "Hook" },
   { id: "dodgeball", label: "Dodgeball" },
+  { id: "pvp", label: "PvP" },
 ];
 
 export function TrainerSwitcher() {

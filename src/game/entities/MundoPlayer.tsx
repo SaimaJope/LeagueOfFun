@@ -5,7 +5,7 @@ import { useAssetStore } from "@/stores/assetStore";
 import { AnimatedModel } from "@/game/animation/AnimatedModel";
 import { inputState } from "@/game/input/useInput";
 import { aimGroundPoint } from "@/game/input/aimRaycaster";
-import { playerEntity, useAimStore } from "@/stores/entityStore";
+import { playerEntity, playerControlState, useAimStore } from "@/stores/entityStore";
 import { useCleaverStore } from "@/stores/cleaverStore";
 import { useFlashStore } from "@/stores/flashStore";
 import { selectedChromaTexturePath, useChromaStore } from "@/stores/chromaStore";
@@ -161,8 +161,10 @@ export function MundoPlayer() {
     }
 
     const speedMultiplier = now < qMoveSlowUntilRef.current ? Q_FACE_MOVE_SPEED_MULTIPLIER : 1;
-    let vx = hasDestinationRef.current ? mx * DODGEBALL_PLAYER_SPEED * speedMultiplier : 0;
-    let vz = hasDestinationRef.current ? mz * DODGEBALL_PLAYER_SPEED * speedMultiplier : 0;
+    // PvP exposes a runtime move-speed knob via playerControlState. Default 1.
+    const pvpMul = playerControlState.movementSpeedMultiplier;
+    let vx = hasDestinationRef.current ? mx * DODGEBALL_PLAYER_SPEED * speedMultiplier * pvpMul : 0;
+    let vz = hasDestinationRef.current ? mz * DODGEBALL_PLAYER_SPEED * speedMultiplier * pvpMul : 0;
     let moving = Math.hypot(vx, vz) > 0.03;
     let nx = px + vx * dt;
     let nz = pz + vz * dt;

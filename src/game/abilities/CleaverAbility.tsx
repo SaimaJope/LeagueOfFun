@@ -15,6 +15,10 @@ import { useModel } from "@/game/assets/modelLoader";
 import { loadTexture } from "@/game/animation/AnimatedModel";
 import { dummyEntity, playerEntity } from "@/stores/entityStore";
 import { useCleaverStore } from "@/stores/cleaverStore";
+import { useTrainerStore } from "@/stores/trainerStore";
+import { usePvpStore } from "@/stores/pvpStore";
+import { opponentEntity } from "@/stores/entityStore";
+import { isInsideWall } from "@/game/entities/PvpWall";
 import { selectedChromaTexturePath, useChromaStore } from "@/stores/chromaStore";
 import { inputState } from "@/game/input/useInput";
 import { aimGroundPoint } from "@/game/input/aimRaycaster";
@@ -118,13 +122,15 @@ export function CleaverAbility() {
       t.phase = "windup";
       t.hitDummy = false;
       spinAngleRef.current = 0;
+      // PvP cooldown overrides — pulled at cast time so the slider applies live.
+      const pvpCooldown = trainerCooldownMs();
       const yaw = Math.atan2(dir[0], dir[2]);
       if (projectileRef.current) {
         projectileRef.current.visible = false;
         projectileRef.current.position.set(t.origin[0], t.origin[1], t.origin[2]);
         projectileRef.current.rotation.set(0, yaw, 0);
       }
-      startCast(now + t.castDelayMs, now + CLEAVER_COOLDOWN_MS, yaw);
+      startCast(now + t.castDelayMs, now + pvpCooldown, yaw);
     }
     qWasDownRef.current = qDown;
 
@@ -208,6 +214,30 @@ export function CleaverAbility() {
         hideGhosts(ghostGroupsRef.current);
         return;
       }
+      // PvP mode: cleaver dies on wall hit and on opponent body hit.
+      if (useTrainerStore.getState().trainer === "pvp") {
+        const orientation = usePvpStore.getState().settings.wallOrientation;
+        if (isInsideWall(px, pz, orientation)) {
+          t.phase = "idle";
+          if (projectileRef.current) projectileRef.current.visible = false;
+          hideGhosts(ghostGroupsRef.current);
+          return;
+        }
+        if (opponentEntity.alive) {
+          const odx = px - opponentEntity.position[0];
+          const odz = pz - opponentEntity.position[2];
+          if (Math.hypot(odx, odz) <= CLEAVER_DUMMY_HIT_RADIUS + CLEAVER_WIDTH) {
+            // Visual end; damage is applied receiver-side (the opponent's
+            // PvpSync detects my cleaver hitting their body and decrements
+            // their own HP).
+            playMundoHit([px, t.origin[1], pz]);
+            t.phase = "idle";
+            if (projectileRef.current) projectileRef.current.visible = false;
+            hideGhosts(ghostGroupsRef.current);
+            return;
+          }
+        }
+      }
       if (t.distance >= CLEAVER_RANGE) {
         t.phase = "idle";
         if (projectileRef.current) projectileRef.current.visible = false;
@@ -271,6 +301,13 @@ function hitsDummy(projectileX: number, projectileZ: number) {
 
 function isMundoRunning() {
   return Math.hypot(playerEntity.velocity[0], playerEntity.velocity[2]) > MOVING_CAST_SPEED_THRESHOLD;
+}
+
+function trainerCooldownMs() {
+  if (useTrainerStore.getState().trainer === "pvp") {
+    return usePvpStore.getState().settings.qCooldownMs;
+  }
+  return CLEAVER_COOLDOWN_MS;
 }
 
 function hideGhosts(groups: Group[]) {

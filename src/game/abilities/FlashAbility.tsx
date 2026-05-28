@@ -5,6 +5,8 @@ import { inputState } from "@/game/input/useInput";
 import { aimGroundPoint } from "@/game/input/aimRaycaster";
 import { playerEntity } from "@/stores/entityStore";
 import { useFlashStore } from "@/stores/flashStore";
+import { useTrainerStore } from "@/stores/trainerStore";
+import { usePvpStore } from "@/stores/pvpStore";
 import { playMundoFlash } from "@/game/audio/mundoAudio";
 import {
   DODGEBALL_ARENA_RADIUS,
@@ -75,7 +77,11 @@ export function FlashAbility() {
 
       playerEntity.position = [destX, 0, destZ];
       playerEntity.velocity = [0, 0, 0];
-      triggerRef.current(origin, destination, now + FLASH_COOLDOWN_MS, now);
+      const cd =
+        useTrainerStore.getState().trainer === "pvp"
+          ? usePvpStore.getState().settings.flashCooldownMs
+          : FLASH_COOLDOWN_MS;
+      triggerRef.current(origin, destination, now + cd, now);
       playMundoFlash(destination);
     }
     fWasDownRef.current = fDown;
