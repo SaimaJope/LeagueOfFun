@@ -14,10 +14,11 @@
   --lol-grey: #a09b8c; /* muted body text */
   --lol-ink-1: #1e2328;
   --lol-ink-2: #010a13;
+  --lol-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .lol-font {
-  font-family: "Cinzel", Georgia, "Times New Roman", serif;
+  font-family: var(--lol-sans);
 }
 
 /* ── Framed panel ─────────────────────────────────────────────── */
@@ -56,7 +57,7 @@
 
 /* ── Engraved gold heading ────────────────────────────────────── */
 .lol-title {
-  font-family: "Cinzel", Georgia, serif;
+  font-family: var(--lol-sans);
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -69,7 +70,7 @@
 }
 
 .lol-label {
-  font-family: "Cinzel", Georgia, serif;
+  font-family: var(--lol-sans);
   font-size: 11px;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -93,7 +94,7 @@
 
 /* ── Buttons ──────────────────────────────────────────────────── */
 .lol-btn {
-  font-family: "Cinzel", Georgia, serif;
+  font-family: var(--lol-sans);
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
@@ -129,7 +130,7 @@
 
 /* ── Code chip ────────────────────────────────────────────────── */
 .lol-chip {
-  font-family: "Cinzel", ui-monospace, monospace;
+  font-family: ui-monospace, "SF Mono", "Consolas", monospace;
   font-weight: 700;
   letter-spacing: 4px;
   color: var(--lol-gold-1);
@@ -169,7 +170,7 @@
 
 /* ── Toggle group ─────────────────────────────────────────────── */
 .lol-toggle {
-  font-family: "Cinzel", Georgia, serif;
+  font-family: var(--lol-sans);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -209,7 +210,7 @@
   transition: width 140ms ease-out;
 }
 .lol-hp-count {
-  font-family: "Cinzel", Georgia, serif;
+  font-family: var(--lol-sans);
   font-weight: 700;
   color: var(--lol-gold-1);
 }
@@ -234,7 +235,7 @@
   box-shadow: 0 0 9px rgba(200, 170, 110, 0.4);
 }
 .lol-keycap {
-  font-family: "Cinzel", Georgia, serif;
+  font-family: var(--lol-sans);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -253,7 +254,7 @@
   z-index: 30;
 }
 .lol-result {
-  font-family: "Cinzel", Georgia, serif;
+  font-family: var(--lol-sans);
   font-weight: 700;
   letter-spacing: 5px;
   text-transform: uppercase;
