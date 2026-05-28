@@ -1,6 +1,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  AdditiveBlending,
   Box3,
   DoubleSide,
   Group,
@@ -476,6 +477,12 @@ function applyGhostAlpha(source: any, alpha: number) {
     material.transparent = true;
     material.opacity = alpha;
     material.depthWrite = false;
+    // ADDITIVE blending so ghosts brighten whatever's behind them instead of
+    // dimming it. With normal blending, 15 stacked translucent ghosts darken
+    // the arena's transparent boundary ring enough that it appears to "flash
+    // off" during a cleaver throw. Additive keeps every underlying outline +
+    // grid line at full opacity AND reads as a glowing PS2-style trail.
+    material.blending = AdditiveBlending;
     material.needsUpdate = true;
   }
 }
