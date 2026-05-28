@@ -34,6 +34,7 @@ export type NetMessage =
         dirX: number;
         dirZ: number;
         distance: number;
+        speed: number;
         phase: "windup" | "flight";
         startedAt: number;
       };
@@ -132,7 +133,14 @@ function wireConn(c: DataConnection) {
     } else if (msg.type === "skin") {
       // Client telling host which skin it picked.
       if (usePvpStore.getState().role === "host") {
-        usePvpStore.getState().setClientSkin(msg.skin);
+        const store = usePvpStore.getState();
+        store.setClientSkin(msg.skin);
+        send({
+          type: "settings",
+          settings: store.settings,
+          hostSkin: store.hostSkin,
+          clientSkin: msg.skin,
+        });
       }
     }
     for (const l of listeners) l(msg);
@@ -158,6 +166,8 @@ export function subscribe(listener: Listener): () => void {
 }
 
 export function startMatch() {
+  const s = usePvpStore.getState();
+  send({ type: "settings", settings: s.settings, hostSkin: s.hostSkin, clientSkin: s.clientSkin });
   send({ type: "start" });
   usePvpStore.getState().setPhase("playing");
 }

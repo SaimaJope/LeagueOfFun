@@ -32,6 +32,7 @@ export interface OpponentEntity extends MutableEntity {
     dirX: number;
     dirZ: number;
     distance: number;
+    speed: number;
     phase: "windup" | "flight";
     castStartedAt: number;
   } | null;

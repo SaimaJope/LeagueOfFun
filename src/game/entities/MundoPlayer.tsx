@@ -40,6 +40,16 @@ export function MundoPlayer() {
   const mundoCfg = useAssetStore((s) => s.registry.mundoPlayerModel);
   const setAim = useAimStore((s) => s.setAim);
   const chromaId = useChromaStore((s) => s.selectedId);
+  const trainer = useTrainerStore((s) => s.trainer);
+  const pvpRole = usePvpStore((s) => s.role);
+  const hostSkin = usePvpStore((s) => s.hostSkin);
+  const clientSkin = usePvpStore((s) => s.clientSkin);
+  const localSkinId =
+    trainer === "pvp"
+      ? pvpRole === "client"
+        ? clientSkin
+        : hostSkin
+      : chromaId;
 
   const [action, setAction] = useState<ActionKey>("idle");
   const [actionToken, setActionToken] = useState(0);
@@ -325,7 +335,7 @@ export function MundoPlayer() {
         config={mundoCfg}
         action={action}
         fallbackColor="#9ec97a"
-        materialTexturePath={selectedChromaTexturePath(chromaId, "mundo")}
+        materialTexturePath={selectedChromaTexturePath(localSkinId, "mundo")}
         actionToken={actionToken}
         onActionFinished={handleActionFinished}
       />
@@ -350,4 +360,3 @@ function scheduleNextIdle2(now: number) {
   const span = DODGEBALL_IDLE2_MAX_MS - DODGEBALL_IDLE2_MIN_MS;
   return now + DODGEBALL_IDLE2_MIN_MS + Math.random() * span;
 }
-

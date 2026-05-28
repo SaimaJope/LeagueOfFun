@@ -1,6 +1,6 @@
 import { useFrame, useLoader } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
-import type { Group } from "three";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AdditiveBlending, DoubleSide, type Group, type Texture } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { opponentEntity, playerControlState, playerEntity } from "@/stores/entityStore";
@@ -9,11 +9,18 @@ import { usePvpStore } from "@/stores/pvpStore";
 import { send, subscribe } from "@/game/network/peerNetwork";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
 import { playMundoHit } from "@/game/audio/mundoAudio";
+import { loadTexture } from "@/game/animation/AnimatedModel";
 import { spawnForRole } from "@/game/entities/PvpWall";
 import { publicAsset } from "@/game/assets/publicPath";
+import { selectedChromaTexturePath } from "@/stores/chromaStore";
 import {
   CLEAVER_SIZE,
   CLEAVER_WIDTH,
+  CLEAVER_SPEED_STANDING,
+  CLEAVER_MOTION_BLUR_SAMPLES,
+  CLEAVER_MOTION_BLUR_STRENGTH,
+  CLEAVER_MOTION_BLUR_STRIDE_MS,
+  CLEAVER_MOTION_BLUR_DECAY,
 } from "@/game/config/dodgeball.config";
 
 const STATE_SEND_HZ = 25;
@@ -36,11 +43,15 @@ export function PvpSync() {
   const moveSpeedMul = usePvpStore((s) => s.settings.moveSpeedMul);
   const wallOrientation = usePvpStore((s) => s.settings.wallOrientation);
   const startingHp = usePvpStore((s) => s.settings.startingHp);
+  const hostSkin = usePvpStore((s) => s.hostSkin);
+  const clientSkin = usePvpStore((s) => s.clientSkin);
+  const opponentSkinId = role === "host" ? clientSkin : hostSkin;
 
   const lastSentRef = useRef(0);
   const opponentCleaverActiveUntilRef = useRef(0);
 
   const opponentCleaverGroupRef = useRef<Group>(null);
+  const opponentCleaverGhostRefs = useRef<Group[]>([]);
   const opponentCleaverModelRef = useRef<Group | null>(null);
 
   // Apply move-speed multiplier to the local player.
@@ -85,6 +96,7 @@ export function PvpSync() {
             dirX: msg.cleaver.dirX,
             dirZ: msg.cleaver.dirZ,
             distance: msg.cleaver.distance,
+            speed: msg.cleaver.speed ?? CLEAVER_SPEED_STANDING,
             phase: msg.cleaver.phase,
             castStartedAt: msg.cleaver.startedAt,
           }
@@ -124,6 +136,7 @@ export function PvpSync() {
               dirX: cleaverProjectileState.dirX,
               dirZ: cleaverProjectileState.dirZ,
               distance: 0,
+              speed: cleaverProjectileState.speed || CLEAVER_SPEED_STANDING,
               phase: cleaverProjectileState.phase === "windup" ? "windup" : "flight",
               startedAt: cleaverProjectileState.startedAt,
             }
@@ -138,9 +151,15 @@ export function PvpSync() {
       // frame on their side so each 40ms snapshot is the actual tip position.
       const cx = c.px;
       const cz = c.pz;
+      const yaw = Math.atan2(c.dirX, c.dirZ);
       opponentCleaverGroupRef.current.visible = true;
       opponentCleaverGroupRef.current.position.set(cx, 1.0, cz);
-      opponentCleaverGroupRef.current.rotation.set(0, Math.atan2(c.dirX, c.dirZ), 0);
+      opponentCleaverGroupRef.current.rotation.set(0, yaw, 0);
+      if (c.phase === "flight") {
+        updateOpponentCleaverGhosts(opponentCleaverGhostRefs.current, c, cx, cz, yaw);
+      } else {
+        hideGroups(opponentCleaverGhostRefs.current);
+      }
 
       // Hit on self — but only during flight, not windup.
       const sdx = cx - playerEntity.position[0];
@@ -155,6 +174,7 @@ export function PvpSync() {
           // Clear opponent cleaver locally so a single shot doesn't keep dealing damage frame after frame.
           opponentEntity.cleaver = null;
           opponentCleaverGroupRef.current.visible = false;
+          hideGroups(opponentCleaverGhostRefs.current);
         }
       }
 
@@ -162,58 +182,158 @@ export function PvpSync() {
       if (now > opponentCleaverActiveUntilRef.current) {
         opponentEntity.cleaver = null;
         opponentCleaverGroupRef.current.visible = false;
+        hideGroups(opponentCleaverGhostRefs.current);
       }
     } else if (opponentCleaverGroupRef.current) {
       opponentCleaverGroupRef.current.visible = false;
+      hideGroups(opponentCleaverGhostRefs.current);
     }
   });
 
   return (
-    <group ref={opponentCleaverGroupRef} visible={false}>
-      <OpponentCleaverModel onReady={(m) => (opponentCleaverModelRef.current = m)} />
-    </group>
+    <>
+      <group ref={opponentCleaverGroupRef} visible={false}>
+        <OpponentCleaverModel
+          skinId={opponentSkinId}
+          onReady={(m) => (opponentCleaverModelRef.current = m)}
+        />
+      </group>
+      {Array.from({ length: CLEAVER_MOTION_BLUR_SAMPLES }).map((_, i) => {
+        const alpha = Math.max(
+          0,
+          CLEAVER_MOTION_BLUR_STRENGTH * Math.pow(1 - CLEAVER_MOTION_BLUR_DECAY, i),
+        );
+        return (
+          <group
+            key={i}
+            ref={(g) => {
+              if (g) opponentCleaverGhostRefs.current[i] = g;
+            }}
+            visible={false}
+          >
+            <OpponentCleaverModel skinId={opponentSkinId} ghostAlpha={alpha} />
+          </group>
+        );
+      })}
+    </>
   );
 }
 
-/**
- * Strip-down clone of CleaverProjectileModel — no chroma, no motion blur, just
- * the GLB rendered shadeless so it reads identically to the local cleaver.
- */
-function OpponentCleaverModel({ onReady }: { onReady: (m: Group) => void }) {
+/** Remote cleaver trail helpers and renderer. */
+function updateOpponentCleaverGhosts(
+  groups: Group[],
+  cleaver: NonNullable<typeof opponentEntity.cleaver>,
+  x: number,
+  z: number,
+  yaw: number,
+) {
+  const speed = cleaver.speed || CLEAVER_SPEED_STANDING;
+  const ghostBaseDist = speed * CLEAVER_MOTION_BLUR_STRIDE_MS * 0.001;
+  for (let i = 0; i < CLEAVER_MOTION_BLUR_SAMPLES; i += 1) {
+    const group = groups[i];
+    if (!group) continue;
+    const lagDist = ghostBaseDist * (i + 1);
+    group.visible = true;
+    group.position.set(x - cleaver.dirX * lagDist, 1.0, z - cleaver.dirZ * lagDist);
+    group.rotation.set(0, yaw, 0);
+  }
+}
+
+function hideGroups(groups: Group[]) {
+  for (const group of groups) {
+    if (group) group.visible = false;
+  }
+}
+
+function OpponentCleaverModel({
+  skinId,
+  ghostAlpha,
+  onReady,
+}: {
+  skinId: string;
+  ghostAlpha?: number;
+  onReady?: (m: Group) => void;
+}) {
   // Re-use the same model loader path. We load it via useLoader so React holds
   // a stable scene reference; cloneSkeleton avoids reparenting issues.
   const gltf = useLoader(GLTFLoader, publicAsset("/assets/models/champions/mundo/cleaver.glb"));
+  const chromaPath = selectedChromaTexturePath(skinId, "mundo");
+  const [chromaTexture, setChromaTexture] = useState<Texture | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!chromaPath) {
+      setChromaTexture(null);
+      return;
+    }
+    loadTexture(chromaPath)
+      .then((texture) => {
+        if (!cancelled) setChromaTexture(texture);
+      })
+      .catch((err) => {
+        console.warn(`[PvpSync] failed to load opponent cleaver chroma ${chromaPath}:`, err);
+        if (!cancelled) setChromaTexture(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [chromaPath]);
+
   const prepared = useMemo(() => {
     const cloned = cloneSkeleton(gltf.scene) as Group;
+    const materials: any[] = [];
     cloned.traverse((o: any) => {
       if (!o.isMesh) return;
       o.castShadow = false;
       o.frustumCulled = false;
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      const meshMaterial = Array.isArray(o.material)
+        ? o.material.map((m: any) => m?.clone?.() ?? m)
+        : o.material?.clone?.() ?? o.material;
+      o.material = meshMaterial;
+      const mats = Array.isArray(meshMaterial) ? meshMaterial : [meshMaterial];
       for (const m of mats) {
         if (!m) continue;
-        // Same shadeless trick as the local cleaver.
-        if (m.emissive) {
-          m.emissive.set(0xffffff);
-          m.emissiveIntensity = 1;
-          m.emissiveMap = m.map ?? null;
-        }
-        if (m.color) m.color.set(0x000000);
-        m.needsUpdate = true;
+        materials.push(m);
       }
     });
-    return cloned;
+    return { scene: cloned, materials };
   }, [gltf]);
 
   useEffect(() => {
-    if (prepared) onReady(prepared);
+    if (prepared) onReady?.(prepared.scene);
   }, [prepared, onReady]);
+
+  useEffect(() => {
+    if (!prepared) return;
+    for (const material of prepared.materials) {
+      if (!material) continue;
+      material.userData = material.userData ?? {};
+      if (material.userData.baseMap === undefined) {
+        material.userData.baseMap = material.map ?? null;
+      }
+      const tex = chromaTexture ?? material.userData.baseMap ?? null;
+      material.map = tex;
+      material.side = DoubleSide;
+      if (material.emissive) {
+        material.emissive.set(0xffffff);
+        material.emissiveIntensity = 1;
+        material.emissiveMap = tex;
+      }
+      if (material.color) material.color.set(0x000000);
+      if (ghostAlpha !== undefined) {
+        material.transparent = true;
+        material.opacity = ghostAlpha;
+        material.depthWrite = false;
+        material.blending = AdditiveBlending;
+      }
+      material.needsUpdate = true;
+    }
+  }, [prepared, chromaTexture, ghostAlpha]);
 
   if (!prepared) return null;
   return (
     <group scale={CLEAVER_SIZE * 0.4} rotation={[Math.PI / 2, 0, 0]}>
-      <primitive object={prepared} />
+      <primitive object={prepared.scene} />
     </group>
   );
 }
-

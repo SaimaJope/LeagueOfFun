@@ -19,7 +19,6 @@ import { cleaverProjectileState, useCleaverStore } from "@/stores/cleaverStore";
 import { useTrainerStore } from "@/stores/trainerStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { opponentEntity } from "@/stores/entityStore";
-import { isInsideWall } from "@/game/entities/PvpWall";
 import { selectedChromaTexturePath, useChromaStore } from "@/stores/chromaStore";
 import { inputState } from "@/game/input/useInput";
 import { aimGroundPoint } from "@/game/input/aimRaycaster";
@@ -139,6 +138,7 @@ export function CleaverAbility() {
       cleaverProjectileState.worldZ = t.origin[2];
       cleaverProjectileState.dirX = dir[0];
       cleaverProjectileState.dirZ = dir[2];
+      cleaverProjectileState.speed = t.flightSpeed;
       cleaverProjectileState.startedAt = now;
     }
     qWasDownRef.current = qDown;
@@ -232,15 +232,9 @@ export function CleaverAbility() {
         hideGhosts(ghostGroupsRef.current);
         return;
       }
-      // PvP mode: cleaver dies on wall hit and on opponent body hit.
+      // PvP mode: the wall blocks players, not cleavers. Q passes through and
+      // only ends on champion hit or max range.
       if (useTrainerStore.getState().trainer === "pvp") {
-        const orientation = usePvpStore.getState().settings.wallOrientation;
-        if (isInsideWall(px, pz, orientation)) {
-          t.phase = "idle";
-          if (projectileRef.current) projectileRef.current.visible = false;
-          hideGhosts(ghostGroupsRef.current);
-          return;
-        }
         if (opponentEntity.alive) {
           const odx = px - opponentEntity.position[0];
           const odz = pz - opponentEntity.position[2];
@@ -342,7 +336,17 @@ function CleaverProjectileModel({ ghostAlpha }: { ghostAlpha?: number } = {}) {
   const cfg = useAssetStore((s) => s.registry.cleaverProjectileModel);
   const state = useModel(cfg.path);
   const chromaId = useChromaStore((s) => s.selectedId);
-  const chromaPath = selectedChromaTexturePath(chromaId, "mundo");
+  const trainer = useTrainerStore((s) => s.trainer);
+  const pvpRole = usePvpStore((s) => s.role);
+  const hostSkin = usePvpStore((s) => s.hostSkin);
+  const clientSkin = usePvpStore((s) => s.clientSkin);
+  const localSkinId =
+    trainer === "pvp"
+      ? pvpRole === "client"
+        ? clientSkin
+        : hostSkin
+      : chromaId;
+  const chromaPath = selectedChromaTexturePath(localSkinId, "mundo");
   const [chromaTexture, setChromaTexture] = useState<Texture | null>(null);
   const isGhost = ghostAlpha !== undefined;
 

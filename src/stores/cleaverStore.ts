@@ -27,6 +27,7 @@ export const cleaverProjectileState = {
   worldZ: 0,
   dirX: 1,
   dirZ: 0,
+  speed: 0,
   /** performance.now() when the cast was accepted (Q press time). */
   startedAt: 0,
 };
