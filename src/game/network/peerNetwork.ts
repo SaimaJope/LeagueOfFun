@@ -18,6 +18,7 @@ export type NetMessage =
   | { type: "skin"; skin: string }
   | { type: "start" }
   | { type: "ping"; t: number }
+  | { type: "hit"; at: [number, number, number] }
   /**
    * Per-player snapshot. Sent ~20 Hz by each peer.
    * cleaver = null when no projectile is in flight.
@@ -46,6 +47,13 @@ type Listener = (msg: NetMessage) => void;
 let peer: Peer | null = null;
 let conn: DataConnection | null = null;
 const listeners = new Set<Listener>();
+let pendingJoinRetry: number | null = null;
+let joinRetryDeadline = 0;
+let joinAttempt = 0;
+let activeJoinCode = "";
+
+const JOIN_RETRY_INTERVAL_MS = 900;
+const JOIN_RETRY_TIMEOUT_MS = 15_000;
 
 /** Random 6-character base36 code. */
 function makeRoomCode() {
@@ -98,9 +106,12 @@ export function joinMatch(code: string) {
   const store = usePvpStore.getState();
   cleanup();
   const cleanCode = code.trim().toUpperCase();
+  activeJoinCode = cleanCode;
   store.setRoomCode(cleanCode);
   store.setRole("client");
   store.setPhase("connecting");
+  joinRetryDeadline = performance.now() + JOIN_RETRY_TIMEOUT_MS;
+  joinAttempt = 0;
   store.setStatus("Connecting…");
 
   peer = new Peer();
@@ -115,8 +126,51 @@ export function joinMatch(code: string) {
   });
   peer.on("error", (err) => {
     console.warn("[net] client error", err);
+    if (isPeerUnavailable(err) && scheduleJoinRetry(cleanCode)) return;
     store.setStatus(`Error: ${err.type ?? err.message ?? err}. Check the code and try again.`);
   });
+}
+
+function connectToHostPeer(cleanCode: string) {
+  if (!peer) return;
+  if (pendingJoinRetry !== null) {
+    window.clearTimeout(pendingJoinRetry);
+    pendingJoinRetry = null;
+  }
+  joinAttempt += 1;
+  const store = usePvpStore.getState();
+  store.setStatus(joinAttempt <= 1 ? "Connecting..." : `Host not visible yet - retrying (${joinAttempt})...`);
+
+  if (conn) {
+    try {
+      conn.close();
+    } catch {}
+    conn = null;
+  }
+
+  const nextConn = peer.connect(peerIdFor(cleanCode), { reliable: true });
+  conn = nextConn;
+  wireConn(nextConn);
+  nextConn.on("open", () => {
+    if (conn !== nextConn) return;
+    store.setStatus("Connected - waiting for host to start.");
+    store.setPhase("ready");
+  });
+}
+
+function scheduleJoinRetry(cleanCode: string) {
+  if (!peer || performance.now() >= joinRetryDeadline) return false;
+  if (pendingJoinRetry !== null) return true;
+  pendingJoinRetry = window.setTimeout(() => {
+    pendingJoinRetry = null;
+    connectToHostPeer(cleanCode);
+  }, JOIN_RETRY_INTERVAL_MS);
+  usePvpStore.getState().setStatus("Host not visible yet - retrying...");
+  return true;
+}
+
+function isPeerUnavailable(err: any) {
+  return String(err?.type ?? err?.message ?? err).includes("peer-unavailable");
 }
 
 function wireConn(c: DataConnection) {
@@ -146,12 +200,19 @@ function wireConn(c: DataConnection) {
     for (const l of listeners) l(msg);
   });
   c.on("close", () => {
+    if (conn !== c) return;
     usePvpStore.getState().setStatus("Friend disconnected.");
     usePvpStore.getState().setPhase("lobby");
     conn = null;
   });
   c.on("error", (err) => {
     console.warn("[net] conn error", err);
+    if (usePvpStore.getState().role === "client" && activeJoinCode && isPeerUnavailable(err)) {
+      if (scheduleJoinRetry(activeJoinCode)) return;
+      usePvpStore
+        .getState()
+        .setStatus("Error: host room not found. Make sure the host tab says waiting for friend, then retry the code.");
+    }
   });
 }
 
@@ -178,6 +239,13 @@ export function isConnected() {
 
 export function cleanup() {
   listeners.clear();
+  if (pendingJoinRetry !== null) {
+    window.clearTimeout(pendingJoinRetry);
+    pendingJoinRetry = null;
+  }
+  joinRetryDeadline = 0;
+  joinAttempt = 0;
+  activeJoinCode = "";
   if (conn) {
     try {
       conn.close();

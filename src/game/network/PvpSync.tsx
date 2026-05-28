@@ -86,6 +86,19 @@ export function PvpSync() {
   // Subscribe to incoming state from the network.
   useEffect(() => {
     return subscribe((msg) => {
+      if (msg.type === "hit") {
+        const me = role === "host" ? "host" : "client";
+        const before = usePvpStore.getState().hp[me];
+        if (before > 0) {
+          usePvpStore.getState().damage(me, 1);
+          useHitEffectStore.getState().trigger([playerEntity.position[0], 0, playerEntity.position[2]], 1);
+          playMundoHit([playerEntity.position[0], 1, playerEntity.position[2]]);
+          opponentEntity.cleaver = null;
+          if (opponentCleaverGroupRef.current) opponentCleaverGroupRef.current.visible = false;
+          hideGroups(opponentCleaverGhostRefs.current);
+        }
+        return;
+      }
       if (msg.type !== "state") return;
       opponentEntity.position = [msg.pos[0], 0, msg.pos[1]];
       opponentEntity.rotationY = msg.rotY;

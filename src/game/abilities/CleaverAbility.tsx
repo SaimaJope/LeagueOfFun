@@ -24,6 +24,7 @@ import { inputState } from "@/game/input/useInput";
 import { aimGroundPoint } from "@/game/input/aimRaycaster";
 import { playMundoHit, playMundoQCast } from "@/game/audio/mundoAudio";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
+import { send } from "@/game/network/peerNetwork";
 import {
   CLEAVER_RANGE,
   CLEAVER_SIZE,
@@ -215,7 +216,8 @@ export function CleaverAbility() {
         const gs = ghostSpinGroupsRef.current[i];
         if (gs) gs.rotation.set(spinAngleRef.current - ghostSpinStep * (i + 1), 0, 0);
       }
-      if (!t.hitDummy && dummyEntity.alive && hitsDummy(px, pz)) {
+      const trainer = useTrainerStore.getState().trainer;
+      if (trainer !== "pvp" && !t.hitDummy && dummyEntity.alive && hitsDummy(px, pz)) {
         t.hitDummy = true;
         dummyEntity.hitSerial += 1;
         playMundoHit([px, t.origin[1], pz]);
@@ -234,16 +236,22 @@ export function CleaverAbility() {
       }
       // PvP mode: the wall blocks players, not cleavers. Q passes through and
       // only ends on champion hit or max range.
-      if (useTrainerStore.getState().trainer === "pvp") {
+      if (trainer === "pvp") {
         if (opponentEntity.alive) {
           const odx = px - opponentEntity.position[0];
           const odz = pz - opponentEntity.position[2];
           if (Math.hypot(odx, odz) <= CLEAVER_DUMMY_HIT_RADIUS + CLEAVER_WIDTH) {
-            // Visual end; damage is applied receiver-side (the opponent's
-            // PvpSync detects my cleaver hitting their body and decrements
-            // their own HP).
+            const hitAt: [number, number, number] = [
+              opponentEntity.position[0],
+              0,
+              opponentEntity.position[2],
+            ];
             playMundoHit([px, t.origin[1], pz]);
+            useHitEffectStore.getState().trigger(hitAt, 1);
+            send({ type: "hit", at: hitAt });
             t.phase = "idle";
+            cleaverProjectileState.active = false;
+            cleaverProjectileState.phase = "idle";
             if (projectileRef.current) projectileRef.current.visible = false;
             hideGhosts(ghostGroupsRef.current);
             return;
