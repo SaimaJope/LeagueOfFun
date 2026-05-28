@@ -11,7 +11,9 @@ export const WALL_HALF_LENGTH = DODGEBALL_ARENA_RADIUS - 0.6;
 export const PVP_WARD_WALL_MODEL = "/assets/models/environment/vision_ward.glb";
 
 const WARD_COUNT = 5;
-const WARD_VISUAL_HEIGHT = WALL_HEIGHT * 1.35;
+// Small totems lining the wall. Roughly 1/7 of the old size — the wards were
+// dwarfing the champions before.
+const WARD_VISUAL_HEIGHT = WALL_HEIGHT * 0.2;
 
 /**
  * Ward fence visual. The orientation flag controls which axis the fence runs along:
@@ -40,7 +42,9 @@ export function PvpWall() {
           <group
             key={index}
             position={position}
-            rotation={[0, isHorizontal ? Math.PI / 2 : 0, 0]}
+            // Turn the ward so its wings run ALONG the wall line (forming a fence)
+            // rather than jutting across it.
+            rotation={[0, isHorizontal ? 0 : Math.PI / 2, 0]}
             scale={ward.scale}
           >
             <primitive object={ward.scene} />
