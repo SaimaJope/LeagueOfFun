@@ -3,10 +3,14 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 export default defineConfig(({ command }) => ({
-  // Repo name must match — every `npm run build` resolves assets relative to
-  // /LeagueOfFun/ so the bundle works on GitHub Pages. `npm run dev` stays on /
-  // so localhost still loads.
-  base: command === "build" ? "/LeagueOfFun/" : "/",
+  // `npm run dev` → "/". On a build, base depends on host:
+  //   Render (auto-sets RENDER=true) → "/" (custom or *.onrender.com root)
+  //   Anywhere else (GitHub Actions / local) → "/LeagueOfFun/" (Pages repo path)
+  // Override with VITE_BASE if you ever need to deploy somewhere else.
+  base:
+    command === "build"
+      ? process.env.VITE_BASE ?? (process.env.RENDER ? "/" : "/LeagueOfFun/")
+      : "/",
   plugins: [react()],
   resolve: {
     alias: {

@@ -14,6 +14,8 @@ import { ModeBar } from "@/game/ui/ModeBar";
 import { FinalScore } from "@/game/ui/FinalScore";
 import { ChromaMenu } from "@/game/ui/ChromaMenu";
 import { TrainerSwitcher } from "@/game/ui/TrainerSwitcher";
+import { VolumeSlider } from "@/game/ui/VolumeSlider";
+import { LoadingScreen } from "@/game/ui/LoadingScreen";
 import { useTrainerStore } from "@/stores/trainerStore";
 
 export function App() {
@@ -48,6 +50,8 @@ export function App() {
         </>
       )}
       <ChromaMenu />
+      <VolumeSlider />
+      <LoadingScreen />
     </div>
   );
 }

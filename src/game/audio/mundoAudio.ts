@@ -1,5 +1,6 @@
 import type { Vec3 } from "@/types/game";
 import { publicAsset } from "@/game/assets/publicPath";
+import { getMasterVolume } from "@/stores/audioStore";
 
 const MUNDO_Q = "/assets/sounds/mundo/mundo_q.mp3";
 const MUNDO_Q_IMPACT = "/assets/sounds/mundo/mundo_q_impact.mp3";
@@ -50,7 +51,7 @@ async function playAt(path: string, _position: Vec3, volume: number) {
     const source = ctx.createBufferSource();
     source.buffer = await loadBuffer(path, ctx);
     const gain = ctx.createGain();
-    gain.gain.value = clamp01(volume);
+    gain.gain.value = clamp01(volume) * getMasterVolume();
     source.connect(gain);
     gain.connect(ctx.destination);
     source.start();

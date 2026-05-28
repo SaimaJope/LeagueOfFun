@@ -1,6 +1,7 @@
 import { Vector3, type Camera } from "three";
 import type { Vec3 } from "@/types/game";
 import { publicAsset } from "@/game/assets/publicPath";
+import { getMasterVolume } from "@/stores/audioStore";
 
 const Q_CAST_SFX = [
   "/assets/sounds/Q1.mp3",
@@ -119,7 +120,7 @@ async function playAt(path: string, position: Vec3, volume: number) {
 
 function createSpatialVoice(ctx: AudioContext, position: Vec3, volume: number) {
   const gain = ctx.createGain();
-  gain.gain.value = clamp01(volume);
+  gain.gain.value = clamp01(volume) * getMasterVolume();
 
   const presence = ctx.createBiquadFilter();
   presence.type = "highshelf";
