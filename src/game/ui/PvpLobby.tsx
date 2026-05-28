@@ -20,6 +20,7 @@ export function PvpLobby() {
   const resetLobby = usePvpStore((s) => s.reset);
 
   const [joinCode, setJoinCode] = useState("");
+  const [copied, setCopied] = useState(false);
 
   function goBack() {
     cleanup();
@@ -56,6 +57,25 @@ export function PvpLobby() {
       send({ type: "skin", skin: id });
     }
     useChromaStore.getState().setChroma(id);
+  }
+
+  async function copyRoomCode() {
+    if (!roomCode) return;
+    try {
+      await navigator.clipboard.writeText(roomCode);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = roomCode;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
   }
 
   return (
@@ -103,9 +123,12 @@ export function PvpLobby() {
               {role === "host" ? "Host (P1)" : "Client (P2)"}
             </div>
             {roomCode && (
-              <div style={{ marginLeft: "auto" }}>
+              <div style={codeRow}>
                 <span style={{ fontSize: 12, color: "#7d8aa1" }}>Code: </span>
                 <span style={codeChip}>{roomCode}</span>
+                <button style={copyBtn} onClick={copyRoomCode}>
+                  {copied ? "Copied" : "Copy"}
+                </button>
               </div>
             )}
           </div>
@@ -318,6 +341,13 @@ const rangeStyle: React.CSSProperties = {
   width: "100%",
 };
 
+const codeRow: React.CSSProperties = {
+  marginLeft: "auto",
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+};
+
 const codeChip: React.CSSProperties = {
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
   fontWeight: 800,
@@ -327,4 +357,15 @@ const codeChip: React.CSSProperties = {
   padding: "4px 10px",
   borderRadius: 6,
   letterSpacing: 3,
+};
+
+const copyBtn: React.CSSProperties = {
+  background: "#1a2330",
+  color: "#cfe1ff",
+  border: "1px solid #2c4366",
+  padding: "5px 9px",
+  borderRadius: 6,
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 700,
 };

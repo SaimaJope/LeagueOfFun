@@ -16,6 +16,7 @@ import { ChromaMenu } from "@/game/ui/ChromaMenu";
 import { TrainerSwitcher } from "@/game/ui/TrainerSwitcher";
 import { VolumeSlider } from "@/game/ui/VolumeSlider";
 import { LoadingScreen } from "@/game/ui/LoadingScreen";
+import { FpsCounter } from "@/game/ui/FpsCounter";
 import { useTrainerStore } from "@/stores/trainerStore";
 
 export function App() {
@@ -51,6 +52,7 @@ export function App() {
       )}
       <ChromaMenu />
       <VolumeSlider />
+      <FpsCounter />
       <LoadingScreen />
     </div>
   );

@@ -1,8 +1,7 @@
 import { create } from "zustand";
-import { TextureLoader } from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { publicAsset } from "@/game/assets/publicPath";
+import { loadModel } from "@/game/assets/modelLoader";
+import { loadTexture } from "@/game/animation/AnimatedModel";
 import { defaultAssetRegistry } from "@/game/config/assets.config";
 import { CHROMAS } from "@/stores/chromaStore";
 
@@ -89,10 +88,6 @@ export function preloadAll() {
 
   usePreloadStore.setState({ loaded: 0, total: unique.length, ready: false, errors: [] });
 
-  const gltfLoader = new GLTFLoader();
-  const fbxLoader = new FBXLoader();
-  const texLoader = new TextureLoader();
-
   const tick = (path: string, err?: unknown) => {
     const s = usePreloadStore.getState();
     const errors = err ? [...s.errors, `${path}: ${String(err)}`] : s.errors;
@@ -103,13 +98,13 @@ export function preloadAll() {
   for (const item of unique) {
     const url = publicAsset(item.path);
     if (item.kind === "model") {
-      const lower = item.path.toLowerCase();
-      const done = () => tick(item.path);
-      const fail = (e: unknown) => tick(item.path, e);
-      if (lower.endsWith(".fbx")) fbxLoader.load(url, done, undefined, fail);
-      else gltfLoader.load(url, done, undefined, fail);
+      loadModel(item.path)
+        .then(() => tick(item.path))
+        .catch((e) => tick(item.path, e));
     } else if (item.kind === "texture") {
-      texLoader.load(url, () => tick(item.path), undefined, (e) => tick(item.path, e));
+      loadTexture(item.path)
+        .then(() => tick(item.path))
+        .catch((e) => tick(item.path, e));
     } else {
       // Audio — just fetch + decode so the buffer cache is warm.
       fetch(url)

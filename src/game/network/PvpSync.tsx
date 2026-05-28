@@ -1,8 +1,8 @@
-import { useFrame, useLoader } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdditiveBlending, DoubleSide, type Group, type Texture } from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { useModel } from "@/game/assets/modelLoader";
 import { dummyEntities, opponentEntity, playerControlState, playerEntity } from "@/stores/entityStore";
 import { cleaverProjectileState, useCleaverStore } from "@/stores/cleaverStore";
 import { usePvpStore } from "@/stores/pvpStore";
@@ -11,7 +11,6 @@ import { useHitEffectStore } from "@/stores/hitEffectStore";
 import { playMundoHit } from "@/game/audio/mundoAudio";
 import { loadTexture } from "@/game/animation/AnimatedModel";
 import { spawnForRole } from "@/game/entities/PvpWall";
-import { publicAsset } from "@/game/assets/publicPath";
 import { selectedChromaTexturePath } from "@/stores/chromaStore";
 import {
   CLEAVER_SIZE,
@@ -50,8 +49,6 @@ export function PvpSync() {
 
   const opponentCleaverGroupRef = useRef<Group>(null);
   const opponentCleaverGhostRefs = useRef<Group[]>([]);
-  const opponentCleaverModelRef = useRef<Group | null>(null);
-
   // Apply move-speed multiplier to the local player.
   useEffect(() => {
     playerControlState.movementSpeedMultiplier = moveSpeedMul;
@@ -195,10 +192,7 @@ export function PvpSync() {
   return (
     <>
       <group ref={opponentCleaverGroupRef} visible={false}>
-        <OpponentCleaverModel
-          skinId={opponentSkinId}
-          onReady={(m) => (opponentCleaverModelRef.current = m)}
-        />
+        <OpponentCleaverModel skinId={opponentSkinId} />
       </group>
       {Array.from({ length: CLEAVER_MOTION_BLUR_SAMPLES }).map((_, i) => {
         const alpha = Math.max(
@@ -250,15 +244,11 @@ function hideGroups(groups: Group[]) {
 function OpponentCleaverModel({
   skinId,
   ghostAlpha,
-  onReady,
 }: {
   skinId: string;
   ghostAlpha?: number;
-  onReady?: (m: Group) => void;
 }) {
-  // Re-use the same model loader path. We load it via useLoader so React holds
-  // a stable scene reference; cloneSkeleton avoids reparenting issues.
-  const gltf = useLoader(GLTFLoader, publicAsset("/assets/models/champions/mundo/cleaver.glb"));
+  const state = useModel("/assets/models/champions/mundo/cleaver.glb");
   const chromaPath = selectedChromaTexturePath(skinId, "mundo");
   const [chromaTexture, setChromaTexture] = useState<Texture | null>(null);
 
@@ -282,7 +272,8 @@ function OpponentCleaverModel({
   }, [chromaPath]);
 
   const prepared = useMemo(() => {
-    const cloned = cloneSkeleton(gltf.scene) as Group;
+    if (state.status !== "ready") return null;
+    const cloned = cloneSkeleton(state.model.scene) as Group;
     const materials: any[] = [];
     cloned.traverse((o: any) => {
       if (!o.isMesh) return;
@@ -299,11 +290,7 @@ function OpponentCleaverModel({
       }
     });
     return { scene: cloned, materials };
-  }, [gltf]);
-
-  useEffect(() => {
-    if (prepared) onReady?.(prepared.scene);
-  }, [prepared, onReady]);
+  }, [state]);
 
   useEffect(() => {
     if (!prepared) return;

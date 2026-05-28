@@ -25,9 +25,9 @@ export function PvpScene() {
   return (
     <Canvas
       shadows
-      dpr={[1, 2]}
+      dpr={[1, 1.5]}
       camera={{ position: [0, 18, 11], fov: 42, near: 0.1, far: 200 }}
-      gl={{ antialias: true }}
+      gl={{ antialias: true, powerPreference: "high-performance" }}
     >
       <color attach="background" args={["#0b0d12"]} />
       <fog attach="fog" args={["#0b0d12", 30, 60]} />
@@ -36,8 +36,8 @@ export function PvpScene() {
         position={[8, 16, 5]}
         intensity={1.2}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
         shadow-camera-left={-15}
         shadow-camera-right={15}
         shadow-camera-top={15}
