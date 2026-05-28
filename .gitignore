@@ -1,0 +1,13 @@
+node_modules
+dist
+.vite
+*.log
+.DS_Store
+tsconfig.tsbuildinfo
+
+# Loose source assets in repo root (duplicates of files in public/assets/)
+/*.glb
+/*.fbx
+/*.mp3
+/*.png
+/*.webp
