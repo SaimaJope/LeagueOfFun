@@ -43,39 +43,44 @@ export function PvpHud() {
   const meHp = hp[meKey];
   const oppHp = hp[oppKey];
   const youWon = winner === meKey;
+  const qTotal = usePvpStore.getState().settings.qCooldownMs;
+  const flashTotal = usePvpStore.getState().settings.flashCooldownMs;
 
   return (
     <>
       <div style={hudWrap}>
-        <HpPanel label="You" current={meHp} max={startingHp} color="#5ab9ff" />
-        <HpPanel label="Opponent" current={oppHp} max={startingHp} color="#ff7e7e" />
+        <HpPanel label="You" current={meHp} max={startingHp} color="#3aa0ff" />
+        <HpPanel label="Opponent" current={oppHp} max={startingHp} color="#e8483f" />
       </div>
 
-      {/* Ability bar — matches dodgeball look */}
-      <div style={abilityBar}>
-        <AbilityIcon icon={cleaverIcon} cooldownMs={cleaverCdLeft} label="Q Cleaver" />
-        <AbilityIcon icon={flashIcon} cooldownMs={flashCdLeft} label="F Flash" />
+      {/* Ability bar */}
+      <div className="lol-panel" style={abilityBar}>
+        <AbilityIcon icon={cleaverIcon} cooldownMs={cleaverCdLeft} totalMs={qTotal} hotkey="Q" />
+        <AbilityIcon icon={flashIcon} cooldownMs={flashCdLeft} totalMs={flashTotal} hotkey="F" />
       </div>
 
       {phase === "ended" && (
-        <div style={endOverlay}>
-          <div style={endPanel}>
+        <div className="lol-overlay">
+          <div className="lol-panel" style={endPanel}>
             <div
+              className="lol-result"
               style={{
-                fontSize: 36,
-                fontWeight: 900,
-                color: youWon ? "#5dd47b" : "#ff7e7e",
-                marginBottom: 12,
+                fontSize: 44,
+                color: youWon ? "#1ec8a5" : "#e8483f",
+                marginBottom: 8,
+                filter: `drop-shadow(0 0 18px ${youWon ? "rgba(30,200,165,0.5)" : "rgba(232,72,63,0.5)"})`,
               }}
             >
               {youWon ? "Victory" : "Defeat"}
             </div>
-            <div style={{ color: "#cfe1ff", marginBottom: 18 }}>
+            <hr className="lol-divider" style={{ marginBottom: 16 }} />
+            <div style={{ color: "var(--lol-grey)", marginBottom: 20, lineHeight: 1.5 }}>
               {youWon ? "You took the last cleaver. " : "Your opponent took the last cleaver. "}
               Back to the lobby for another round.
             </div>
             <button
-              style={endBtn}
+              className="lol-btn lol-btn-primary"
+              style={{ padding: "11px 22px", fontSize: 14 }}
               onClick={() => {
                 cleanup();
                 resetLobby();
@@ -103,18 +108,20 @@ function HpPanel({
 }) {
   const pct = max > 0 ? Math.max(0, current / max) : 0;
   return (
-    <div style={hpPanel}>
-      <div style={{ fontSize: 12, color: "#7d8aa1", marginBottom: 4 }}>{label}</div>
-      <div style={hpTrack}>
-        <div style={{ ...hpFill, width: `${pct * 100}%`, background: color }} />
+    <div className="lol-panel" style={hpPanel}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+        <span className="lol-label">{label}</span>
+        <span className="lol-hp-count" style={{ fontSize: 14 }}>
+          {current} / {max}
+        </span>
+      </div>
+      <div className="lol-hp-track">
+        <div className="lol-hp-fill" style={{ width: `${pct * 100}%`, background: color }} />
         <div style={hpTicks}>
           {Array.from({ length: max }).map((_, i) => (
             <div key={i} style={{ ...hpTick, left: `${((i + 1) / max) * 100}%` }} />
           ))}
         </div>
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#e6f1ff", textAlign: "right" }}>
-        {current} / {max}
       </div>
     </div>
   );
@@ -128,15 +135,12 @@ const abilityBar: React.CSSProperties = {
   display: "flex",
   gap: 16,
   padding: 12,
-  background: "rgba(15,20,30,0.78)",
-  border: "1px solid #243149",
-  borderRadius: 12,
   zIndex: 8,
 };
 
 const hudWrap: React.CSSProperties = {
   position: "absolute",
-  top: 14,
+  top: 16,
   left: "50%",
   transform: "translateX(-50%)",
   display: "flex",
@@ -146,28 +150,8 @@ const hudWrap: React.CSSProperties = {
 };
 
 const hpPanel: React.CSSProperties = {
-  background: "rgba(15,20,30,0.78)",
-  border: "1px solid #243149",
-  borderRadius: 10,
-  padding: "8px 12px",
-  minWidth: 200,
-};
-
-const hpTrack: React.CSSProperties = {
-  position: "relative",
-  height: 12,
-  background: "#0e1622",
-  border: "1px solid #2c4366",
-  borderRadius: 6,
-  overflow: "hidden",
-  marginBottom: 4,
-};
-
-const hpFill: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  width: "100%",
-  transition: "width 120ms ease-out",
+  padding: "9px 13px",
+  minWidth: 210,
 };
 
 const hpTicks: React.CSSProperties = {
@@ -181,36 +165,12 @@ const hpTick: React.CSSProperties = {
   top: 0,
   bottom: 0,
   width: 1,
-  background: "rgba(0,0,0,0.5)",
-};
-
-const endOverlay: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  background: "rgba(8,11,18,0.7)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 30,
+  background: "rgba(0,0,0,0.55)",
 };
 
 const endPanel: React.CSSProperties = {
-  background: "rgba(12,16,24,0.95)",
-  border: "1px solid #2a3950",
-  borderRadius: 14,
-  padding: 28,
-  width: 420,
+  padding: 30,
+  width: 440,
   maxWidth: "92vw",
   textAlign: "center",
-  boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
-};
-
-const endBtn: React.CSSProperties = {
-  background: "#244266",
-  color: "#e6f1ff",
-  border: "1px solid #5180c4",
-  padding: "10px 18px",
-  borderRadius: 8,
-  cursor: "pointer",
-  fontWeight: 700,
 };

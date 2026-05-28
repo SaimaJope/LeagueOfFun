@@ -3,60 +3,87 @@ import type { IconAssetConfig } from "@/game/config/assets.config";
 import { publicAsset } from "@/game/assets/publicPath";
 
 /**
- * Shared ability slot — icon + cooldown overlay + label. Used by both the
- * Dodgeball HUD and PvP HUD so they stay visually identical.
+ * Shared ability slot — gold-framed icon with a radial cooldown sweep and an
+ * optional hotkey cap, in the old-League style. Used by the Dodgeball + PvP HUDs.
  */
 export function AbilityIcon({
   icon,
   cooldownMs,
+  totalMs,
   label,
+  hotkey,
 }: {
   icon: IconAssetConfig;
   cooldownMs: number;
-  label: string;
+  /** Full cooldown duration; enables the radial sweep when provided. */
+  totalMs?: number;
+  label?: string;
+  /** Single-letter keybind shown as a corner cap. */
+  hotkey?: string;
 }) {
   const ready = cooldownMs <= 0;
+  const sweepDeg = !ready && totalMs ? Math.min(1, cooldownMs / totalMs) * 360 : 0;
   return (
-    <div style={{ position: "relative", width: 56, height: 56 }}>
-      <div
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: 10,
-          background: ready ? "#1a2330" : "#0f1620",
-          border: `1px solid ${ready ? "#3d6fa8" : "#2a3950"}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: ready ? "#9ec9ff" : "#3e4a5c",
-          padding: 6,
-          boxSizing: "border-box",
-          overflow: "hidden",
-        }}
-      >
+    <div style={{ position: "relative", width: 54, height: 54 }}>
+      <div className={`lol-ability${ready ? " ready" : ""}`}>
         <IconImage icon={icon} ready={ready} />
       </div>
+
+      {/* Radial cooldown wipe. */}
+      {sweepDeg > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: 2,
+            pointerEvents: "none",
+            background: `conic-gradient(rgba(1,10,19,0.78) ${sweepDeg}deg, rgba(0,0,0,0) ${sweepDeg}deg)`,
+          }}
+        />
+      )}
+
       {!ready && (
         <div
+          className="lol-font"
           style={{
             position: "absolute",
             inset: 0,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#e6e8ee",
+            color: "#f0e6d2",
             fontWeight: 700,
             fontSize: 18,
             pointerEvents: "none",
-            textShadow: "0 1px 2px #000",
+            textShadow: "0 1px 3px #000",
           }}
         >
           {(cooldownMs / 1000).toFixed(1)}
         </div>
       )}
-      <div style={{ textAlign: "center", fontSize: 11, color: "#7d8aa1", marginTop: 2 }}>
-        {label}
-      </div>
+
+      {hotkey ? (
+        <div
+          className="lol-keycap"
+          style={{
+            position: "absolute",
+            right: 2,
+            bottom: 2,
+            background: "rgba(1,10,19,0.85)",
+            border: "1px solid var(--lol-gold-4)",
+            borderRadius: 2,
+            padding: "0 4px",
+            lineHeight: "14px",
+            pointerEvents: "none",
+          }}
+        >
+          {hotkey}
+        </div>
+      ) : label ? (
+        <div className="lol-keycap" style={{ textAlign: "center", marginTop: 3 }}>
+          {label}
+        </div>
+      ) : null}
     </div>
   );
 }
