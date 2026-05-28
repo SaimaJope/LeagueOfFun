@@ -33,6 +33,8 @@ const BOUNDARY_PADDING = 0.2; // keep the model's feet a bit inside the visible 
 // Stops the move/idle flicker when clicking destinations close together.
 const IDLE_DEBOUNCE_MS = 140;
 
+type AttackPhase = "none" | "attack" | "attackToIdle" | "attackIntoRun";
+
 /** Click-to-move Mundo player, clamped to a circular arena. Plays idle2 randomly between actions. */
 export function MundoPlayer() {
   const ref = useRef<Group>(null);
@@ -67,11 +69,10 @@ export function MundoPlayer() {
   const idle2PlayingRef = useRef(false);
   const idle2EndsAtRef = useRef(0);
 
-  // Attack phase machine — drives the attack → attackToIdle/attackIntoRun → normal chain.
-  // Phases now advance on the mixer's "finished" event (via onActionFinished), so the timing
-  // matches the actual clip length — no freezes, no early cuts.
-  const [attackPhase, setAttackPhase] = useState<"none" | "attack" | "attackToIdle" | "attackIntoRun">("none");
-  const attackPhaseRef = useRef<"none" | "attack" | "attackToIdle" | "attackIntoRun">("none");
+  // Attack phase machine. Running casts use attackIntoRun only while Mundo is
+  // actually moving; if movement stops mid-cast, recovery pivots to attackToIdle.
+  const [attackPhase, setAttackPhase] = useState<AttackPhase>("none");
+  const attackPhaseRef = useRef<AttackPhase>("none");
   attackPhaseRef.current = attackPhase;
   // Tracks accepted Q casts so attack/facing effects fire exactly once.
   const lastCastSerialRef = useRef(0);
@@ -79,6 +80,11 @@ export function MundoPlayer() {
   const forcedFacingAngleRef = useRef(0);
   const forcedFacingUntilRef = useRef(0);
   const qMoveSlowUntilRef = useRef(0);
+
+  const setAttackPhaseNow = (next: AttackPhase) => {
+    attackPhaseRef.current = next;
+    setAttackPhase((prev) => (prev === next ? prev : next));
+  };
 
   useEffect(() => {
     // Reset state when this component mounts (e.g. switching trainers).
@@ -154,8 +160,7 @@ export function MundoPlayer() {
       if (cleaverState.castingUntil > 0 && cleaverState.castingUntil > now) {
         const movingCast = hasDestinationRef.current;
         const nextPhase = movingCast ? "attackIntoRun" : "attack";
-        attackPhaseRef.current = nextPhase;
-        setAttackPhase(nextPhase);
+        setAttackPhaseNow(nextPhase);
         forcedFacingAngleRef.current = cleaverState.castFaceAngle;
         forcedFacingUntilRef.current = movingCast ? now + Q_FACE_HOLD_MS : cleaverState.castingUntil + 100;
         qMoveSlowUntilRef.current = movingCast ? now + Q_FACE_HOLD_MS : 0;
@@ -252,8 +257,14 @@ export function MundoPlayer() {
     // clicks don't churn move/idle crossfades.
     const movingForAnim = !stopPressed && (moving || now - lastMovingAtRef.current < IDLE_DEBOUNCE_MS);
 
-    // Attack phase overrides any other animation choice.
-    const phase = attackPhaseRef.current;
+    // Attack phase overrides any other animation choice. The run-recovery clip
+    // must not continue after real movement stops, or Mundo appears to moonwalk.
+    const continuingMoveForAttack = !stopPressed && moving && hasDestinationRef.current;
+    let phase = attackPhaseRef.current;
+    if (phase === "attackIntoRun" && !continuingMoveForAttack) {
+      phase = "attackToIdle";
+      setAttackPhaseNow(phase);
+    }
 
     // pick desired action — attack phases override; then moving; then idle/idle2.
     let desired: ActionKey = "idle";
@@ -315,17 +326,12 @@ export function MundoPlayer() {
     if (finished === "attack") {
       // Choose transition based on whether the player has a pending destination.
       if (hasDestinationRef.current) {
-        attackPhaseRef.current = "attackIntoRun";
-        setAttackPhase("attackIntoRun");
-        setActionToken((t) => t + 1);
+        setAttackPhaseNow("attackIntoRun");
       } else {
-        attackPhaseRef.current = "attackToIdle";
-        setAttackPhase("attackToIdle");
-        setActionToken((t) => t + 1);
+        setAttackPhaseNow("attackToIdle");
       }
     } else if (finished === "attackToIdle" || finished === "attackIntoRun") {
-      attackPhaseRef.current = "none";
-      setAttackPhase("none");
+      setAttackPhaseNow("none");
     }
   };
 

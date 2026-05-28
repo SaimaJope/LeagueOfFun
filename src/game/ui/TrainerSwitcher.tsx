@@ -1,14 +1,16 @@
-import { useTrainerStore, type Trainer } from "@/stores/trainerStore";
+import { areTrainingModesVisible, useTrainerStore, type Trainer } from "@/stores/trainerStore";
 
 const OPTIONS: { id: Trainer; label: string }[] = [
-  { id: "hookTrainer", label: "Hook" },
-  { id: "dodgeball", label: "Dodgeball" },
   { id: "pvp", label: "PvP" },
+  { id: "dodgeball", label: "Dodgeball" },
+  { id: "hookTrainer", label: "Hook" },
 ];
 
 export function TrainerSwitcher() {
   const trainer = useTrainerStore((s) => s.trainer);
   const setTrainer = useTrainerStore((s) => s.setTrainer);
+
+  if (!areTrainingModesVisible()) return null;
 
   return (
     <div
