@@ -54,10 +54,9 @@ const PEER_OPTIONS = {
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
-      // TURN servers (relay traffic when direct P2P fails) - Free public servers
+      // TURN servers (relay traffic when direct P2P fails)
       { urls: "turn:numb.viagenie.ca", username: "webrtc@live.com", credential: "webrtcclient" },
-      { urls: "turn:openrelay.metered.ca:80", username: "", credential: "" },
-      { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "", credential: "" },
+      { urls: "turn:numb.viagenie.ca?transport=tcp", username: "webrtc@live.com", credential: "webrtcclient" },
     ],
   },
 };
