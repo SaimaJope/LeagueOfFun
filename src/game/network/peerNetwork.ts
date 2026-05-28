@@ -14,6 +14,11 @@ export type NetMessage =
   | { type: "ping"; t: number }
   | { type: "hit"; target?: "host" | "client"; at: [number, number, number] }
   | {
+      type: "flash";
+      origin: [number, number, number];
+      destination: [number, number, number];
+    }
+  | {
       type: "state";
       t: number;
       pos: [number, number];

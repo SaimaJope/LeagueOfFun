@@ -1,14 +1,25 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AdditiveBlending, DoubleSide, type Group, type Texture } from "three";
+import {
+  AdditiveBlending,
+  Box3,
+  DoubleSide,
+  Group,
+  Matrix4,
+  Mesh,
+  Vector3,
+  type Texture,
+} from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { useAssetStore } from "@/stores/assetStore";
 import { useModel } from "@/game/assets/modelLoader";
 import { dummyEntities, opponentEntity, playerControlState, playerEntity } from "@/stores/entityStore";
 import { cleaverProjectileState, useCleaverStore } from "@/stores/cleaverStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { send, subscribe } from "@/game/network/peerNetwork";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
-import { playMundoHit } from "@/game/audio/mundoAudio";
+import { useOpponentFlashStore } from "@/stores/opponentFlashStore";
+import { playMundoHit, playMundoFlash } from "@/game/audio/mundoAudio";
 import { loadTexture } from "@/game/animation/AnimatedModel";
 import { spawnForRole } from "@/game/entities/PvpWall";
 import { selectedChromaTexturePath } from "@/stores/chromaStore";
@@ -24,6 +35,9 @@ import {
 const STATE_SEND_HZ = 40;
 const STATE_SEND_INTERVAL_MS = 1000 / STATE_SEND_HZ;
 const OPPONENT_CLEAVER_LIFETIME_MS = 4000;
+// Same forward-axis correction the local cleaver bakes into its geometry so the
+// blade lies flat and points along its flight vector (see CleaverAbility).
+const CLEAVER_FORWARD_ROTATION = new Matrix4().makeRotationX(Math.PI / 2);
 
 /**
  * Drives the runtime PvP loop inside the Canvas:
@@ -98,6 +112,13 @@ export function PvpSync() {
           if (opponentCleaverGroupRef.current) opponentCleaverGroupRef.current.visible = false;
           hideGroups(opponentCleaverGhostRefs.current);
         }
+        return;
+      }
+      if (msg.type === "flash") {
+        useOpponentFlashStore
+          .getState()
+          .trigger(msg.origin, msg.destination, performance.now());
+        playMundoFlash(msg.destination);
         return;
       }
       if (msg.type !== "state") return;
@@ -248,7 +269,8 @@ function OpponentCleaverModel({
   skinId: string;
   ghostAlpha?: number;
 }) {
-  const state = useModel("/assets/models/champions/mundo/cleaver.glb");
+  const cfg = useAssetStore((s) => s.registry.cleaverProjectileModel);
+  const state = useModel(cfg.path);
   const chromaPath = selectedChromaTexturePath(skinId, "mundo");
   const [chromaTexture, setChromaTexture] = useState<Texture | null>(null);
 
@@ -271,26 +293,62 @@ function OpponentCleaverModel({
     };
   }, [chromaPath]);
 
+  // Bake the cleaver the same way CleaverAbility does for the local player:
+  // flatten the GLB hierarchy into world space, apply the forward-axis
+  // correction, then recenter on the bounding-box origin and auto-fit the
+  // height. Without this the raw GLB mesh sits off its pivot and the opponent's
+  // cleaver renders far from its networked position (i.e. appears invisible).
   const prepared = useMemo(() => {
     if (state.status !== "ready") return null;
-    const cloned = cloneSkeleton(state.model.scene) as Group;
+    const source = cloneSkeleton(state.model.scene) as Group;
+    const scene = new Group();
+    const box = new Box3();
+    let started = false;
     const materials: any[] = [];
-    cloned.traverse((o: any) => {
+
+    source.updateMatrixWorld(true);
+    source.traverse((o: any) => {
       if (!o.isMesh) return;
-      o.castShadow = false;
-      o.frustumCulled = false;
+      const geometry = o.geometry.clone();
+      geometry.applyMatrix4(o.matrixWorld);
+      geometry.applyMatrix4(CLEAVER_FORWARD_ROTATION);
+      geometry.computeBoundingBox();
+
       const meshMaterial = Array.isArray(o.material)
         ? o.material.map((m: any) => m?.clone?.() ?? m)
         : o.material?.clone?.() ?? o.material;
-      o.material = meshMaterial;
       const mats = Array.isArray(meshMaterial) ? meshMaterial : [meshMaterial];
       for (const m of mats) {
         if (!m) continue;
         materials.push(m);
       }
+
+      const mesh = new Mesh(geometry, meshMaterial);
+      mesh.castShadow = false;
+      mesh.frustumCulled = false;
+      scene.add(mesh);
+
+      const meshBox = geometry.boundingBox;
+      if (!meshBox) return;
+      if (!started) {
+        box.copy(meshBox);
+        started = true;
+      } else {
+        box.union(meshBox);
+      }
     });
-    return { scene: cloned, materials };
-  }, [state]);
+
+    if (!started) return null;
+
+    const size = new Vector3();
+    const center = new Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const autoScale = cfg.autoFitHeight ? cfg.autoFitHeight / maxDim : 1;
+    scene.children.forEach((child) => child.position.sub(center));
+    return { scene, autoScale, materials };
+  }, [state, cfg.autoFitHeight]);
 
   useEffect(() => {
     if (!prepared) return;
@@ -321,7 +379,7 @@ function OpponentCleaverModel({
 
   if (!prepared) return null;
   return (
-    <group scale={CLEAVER_SIZE * 0.4} rotation={[Math.PI / 2, 0, 0]}>
+    <group scale={cfg.scale * prepared.autoScale * CLEAVER_SIZE}>
       <primitive object={prepared.scene} />
     </group>
   );

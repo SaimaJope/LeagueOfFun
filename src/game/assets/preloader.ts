@@ -76,6 +76,7 @@ export function preloadAll() {
     "/assets/sounds/mundo/wow.mp3",
     "/assets/sounds/mundo/haha.mp3",
     "/assets/sounds/mundo/mundo_quote.mp3",
+    "/assets/sounds/mundo/death.mp3",
   ];
   for (const p of audioPaths) items.push({ kind: "audio", path: p });
 

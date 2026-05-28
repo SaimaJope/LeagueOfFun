@@ -8,8 +8,10 @@ import { MundoPlayer } from "@/game/entities/MundoPlayer";
 import { OpponentChampion } from "@/game/entities/OpponentChampion";
 import { CleaverAbility } from "@/game/abilities/CleaverAbility";
 import { FlashAbility } from "@/game/abilities/FlashAbility";
+import { FlashVfx } from "@/game/abilities/FlashVfx";
 import { BloodHitEffect } from "@/game/effects/BloodHitEffect";
 import { PvpSync } from "@/game/network/PvpSync";
+import { useOpponentFlashStore } from "@/stores/opponentFlashStore";
 
 export function PvpScene() {
   useInput(null);
@@ -60,6 +62,7 @@ export function PvpScene() {
           <OpponentChampion />
           <CleaverAbility />
           <FlashAbility />
+          <FlashVfx read={useOpponentFlashStore.getState} />
           <BloodHitEffect />
           <PvpSync />
         </>

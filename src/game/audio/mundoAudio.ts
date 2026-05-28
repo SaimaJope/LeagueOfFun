@@ -5,6 +5,7 @@ import { getMasterVolume } from "@/stores/audioStore";
 const MUNDO_Q = "/assets/sounds/mundo/mundo_q.mp3";
 const MUNDO_Q_IMPACT = "/assets/sounds/mundo/mundo_q_impact.mp3";
 const MUNDO_FLASH = "/assets/sounds/mundo/flash.mp3";
+const MUNDO_DEATH = "/assets/sounds/mundo/death.mp3";
 const WOW = "/assets/sounds/mundo/wow.mp3";
 
 const MOVE_QUOTES = [
@@ -30,6 +31,10 @@ export function playMundoHit(position: Vec3) {
 
 export function playMundoFlash(position: Vec3) {
   void playAt(MUNDO_FLASH, position, 0.9);
+}
+
+export function playMundoDeath(position: Vec3) {
+  void playAt(MUNDO_DEATH, position, 1.0);
 }
 
 export function maybePlayMundoMoveQuote(position: Vec3, now = performance.now()) {

@@ -114,6 +114,7 @@ export const defaultAssetRegistry: AssetRegistry = {
       attack: "Attack",
       attackToIdle: "Attack_To_Idle",
       attackIntoRun: "Attack_Into_Run",
+      death: "Death",
     },
     animationSources: {
       idle: { path: "/assets/models/champions/mundo/dr._mundo_idle.glb", clipIndex: 0 },
@@ -122,8 +123,9 @@ export const defaultAssetRegistry: AssetRegistry = {
       attack: { path: "/assets/models/champions/mundo/dr._mundo_attack.glb", clipIndex: 0 },
       attackToIdle: { path: "/assets/models/champions/mundo/dr._mundo_attack_to_idle.glb", clipIndex: 0 },
       attackIntoRun: { path: "/assets/models/champions/mundo/attack_into_run.glb", clipIndex: 0 },
+      death: { path: "/assets/models/champions/mundo/dr._mundo_death.glb", clipIndex: 0 },
     },
-    notes: "Dr. Mundo: idle, idle2 (every 4-14s), run, attack, attack_to_idle, attack_into_run.",
+    notes: "Dr. Mundo: idle, idle2 (every 4-14s), run, attack, attack_to_idle, attack_into_run, death.",
   },
   defaultDummyModel: {
     name: "Default Dummy",

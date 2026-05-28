@@ -9,7 +9,7 @@ import { playerEntity, playerControlState, useAimStore } from "@/stores/entitySt
 import { useCleaverStore } from "@/stores/cleaverStore";
 import { useFlashStore } from "@/stores/flashStore";
 import { selectedChromaTexturePath, useChromaStore } from "@/stores/chromaStore";
-import { maybePlayMundoMoveQuote } from "@/game/audio/mundoAudio";
+import { maybePlayMundoMoveQuote, playMundoDeath } from "@/game/audio/mundoAudio";
 import { useTrainerStore } from "@/stores/trainerStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { spawnForRole, WALL_THICKNESS } from "@/game/entities/PvpWall";
@@ -77,6 +77,9 @@ export function MundoPlayer() {
   // Tracks accepted Q casts so attack/facing effects fire exactly once.
   const lastCastSerialRef = useRef(0);
   const lastFlashSerialRef = useRef(0);
+  // Latches once when the local champion dies so the death one-shot + sound fire
+  // exactly once; cleared on a rematch when HP is restored.
+  const deadRef = useRef(false);
   const forcedFacingAngleRef = useRef(0);
   const forcedFacingUntilRef = useRef(0);
   const qMoveSlowUntilRef = useRef(0);
@@ -116,6 +119,26 @@ export function MundoPlayer() {
 
   useFrame((_, dt) => {
     const now = performance.now();
+
+    // Death (PvP only): when our HP hits 0, play the death one-shot + sound once
+    // and freeze — no movement, casting, or facing updates while dead. Cleared
+    // automatically on a rematch when HP is restored.
+    if (useTrainerStore.getState().trainer === "pvp") {
+      const pvp = usePvpStore.getState();
+      const myRole = pvp.role === "client" ? "client" : "host";
+      const myHp = pvp.hp[myRole];
+      if (deadRef.current && myHp > 0) {
+        deadRef.current = false;
+      } else if (!deadRef.current && myHp <= 0) {
+        deadRef.current = true;
+        playerEntity.velocity = [0, 0, 0];
+        hasDestinationRef.current = false;
+        setAction("death");
+        setActionToken((t) => t + 1);
+        playMundoDeath(playerEntity.position);
+      }
+      if (deadRef.current) return;
+    }
 
     // Detect a new Flash: snap the internal position to the teleport destination
     // and cancel any in-flight move command so Mundo doesn't walk back to the old
