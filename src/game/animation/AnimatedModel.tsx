@@ -14,6 +14,7 @@ import {
   type Texture,
 } from "three";
 import { loadModel, useModel } from "@/game/assets/modelLoader";
+import { publicAsset } from "@/game/assets/publicPath";
 import { pickClip, type ActionKey } from "@/game/animation/clipMatcher";
 import type { ModelAssetConfig, AnimationSource } from "@/game/config/assets.config";
 
@@ -270,7 +271,7 @@ export function loadTexture(path: string) {
   const promise = new Promise<Texture>((resolve, reject) => {
     const loader = new TextureLoader();
     loader.load(
-      path,
+      publicAsset(path),
       (texture) => {
         texture.flipY = false;
         texture.colorSpace = SRGBColorSpace;

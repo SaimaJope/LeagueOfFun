@@ -1,7 +1,8 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useLoader } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { AdditiveBlending, type Group, type Mesh } from "three";
+import { NormalBlending, SRGBColorSpace, TextureLoader, type Group, type Mesh } from "three";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
+import { publicAsset } from "@/game/assets/publicPath";
 import {
   BLOOD_BASE_HEIGHT,
   BLOOD_DURATION_MS,
@@ -9,22 +10,28 @@ import {
   BLOOD_SHARD_COUNT,
 } from "@/game/config/dodgeball.config";
 
+const BLOOD_TEXTURE_PATH = "/assets/effects/blood_streak.png";
+
 interface Shard {
   mesh: { current: Mesh | null };
-  angle: number;       // radial direction around the hit point (radians)
-  tilt: number;        // small vertical tilt so shards splay in 3D, not flat on the ground
-  lengthMul: number;   // 0.5..1.4, per-shard length
-  thickness: number;   // per-shard half-width
-  speed: number;       // 0.7..1.3, how fast it extends
+  angle: number;
+  tilt: number;        // small Z-axis rotation per shard so streaks aren't perfectly radial
+  lengthMul: number;
+  thicknessMul: number;
+  speed: number;
+  flipY: number;       // -1 or 1, so streaks can fire in either direction along their plane
 }
 
 /**
- * Old-school League blood splatter: a fan of bright additive red shards that
- * burst out from the hit point, peak fast, then fade. Listens to
- * useHitEffectStore — fire it from anywhere by calling
- * `useHitEffectStore.getState().trigger(position)`.
+ * Old-school League blood splatter — a tight burst of textured streaks that
+ * pop out from the hit point and fade. Uses an art asset (`blood_streak.png`)
+ * so the streaks look hand-drawn rather than like laser sticks.
  */
 export function BloodHitEffect() {
+  const texture = useLoader(TextureLoader, publicAsset(BLOOD_TEXTURE_PATH));
+  // PNG with alpha — render in sRGB so the red doesn't go washed-pink.
+  texture.colorSpace = SRGBColorSpace;
+
   const groupRef = useRef<Group>(null);
   const lastSerialRef = useRef(0);
   const castStartRef = useRef(0);
@@ -34,15 +41,15 @@ export function BloodHitEffect() {
   const shards = useMemo<Shard[]>(
     () =>
       Array.from({ length: BLOOD_SHARD_COUNT }, (_, i) => {
-        // Distribute angles roughly evenly around the circle, with jitter.
         const base = (i / BLOOD_SHARD_COUNT) * Math.PI * 2;
         return {
           mesh: { current: null as Mesh | null },
-          angle: base + (Math.random() - 0.5) * 0.4,
-          tilt: (Math.random() - 0.5) * 0.5,
-          lengthMul: 0.55 + Math.random() * 0.85,
-          thickness: 0.05 + Math.random() * 0.07,
-          speed: 0.75 + Math.random() * 0.55,
+          angle: base + (Math.random() - 0.5) * 0.7,
+          tilt: (Math.random() - 0.5) * 0.6,
+          lengthMul: 0.6 + Math.random() * 0.6,
+          thicknessMul: 0.45 + Math.random() * 0.6,
+          speed: 0.8 + Math.random() * 0.5,
+          flipY: Math.random() < 0.5 ? -1 : 1,
         };
       }),
     [],
@@ -66,9 +73,9 @@ export function BloodHitEffect() {
     groupRef.current.visible = true;
 
     const t01 = elapsed / BLOOD_DURATION_MS;
-    // Pop-in to ~25% of lifetime, then fade.
-    const popIn = Math.min(1, t01 / 0.18);
-    const fadeOut = t01 < 0.25 ? 1 : 1 - (t01 - 0.25) / 0.75;
+    // Sharp pop, then a longer fade — feels like an explosion, not a fountain.
+    const popIn = Math.min(1, t01 / 0.08);
+    const fadeOut = t01 < 0.18 ? 1 : Math.pow(1 - (t01 - 0.18) / 0.82, 1.5);
     const masterAlpha = popIn * fadeOut * castIntensityRef.current;
 
     const [cx, , cz] = castPositionRef.current;
@@ -77,24 +84,22 @@ export function BloodHitEffect() {
     for (const shard of shards) {
       const mesh = shard.mesh.current;
       if (!mesh) continue;
-      // Length grows fast then settles; this is the "shard burst" feel.
-      const grow = 1 - Math.pow(1 - Math.min(1, t01 * 2 * shard.speed), 2);
+      const grow = 1 - Math.pow(1 - Math.min(1, t01 * 2.5 * shard.speed), 2);
       const length = BLOOD_MAX_LENGTH * shard.lengthMul * grow * castIntensityRef.current;
-      // The plane is 1×1 by default; scale X = length, Y = thickness.
-      mesh.position.set(cx, cy, cz);
-      // Yaw around Y for radial direction. Pitch slightly up/down for splay.
+      const thickness = BLOOD_MAX_LENGTH * 0.35 * shard.thicknessMul * grow * castIntensityRef.current;
+
+      // Plane spans 1×1 around its center. We translate the plane outward along
+      // its local +X by half its length so the inner end (where the streak
+      // starts in the texture) sits at the hit point.
       mesh.rotation.set(shard.tilt, shard.angle, 0);
-      mesh.scale.set(length, shard.thickness * 2, 1);
-      // The plane origin is its center, so we have to translate it outward
-      // along its local X so its inner end sits at the hit point.
-      // Using translateOnAxis would alter position permanently — instead we
-      // apply it via the world matrix by setting position offset along the dir.
       const half = length / 2;
       mesh.position.set(
         cx + Math.cos(shard.angle) * half,
         cy + Math.sin(shard.tilt) * half,
         cz - Math.sin(shard.angle) * half,
       );
+      mesh.scale.set(length, thickness * shard.flipY, 1);
+
       const mat: any = mesh.material;
       if (mat && "opacity" in mat) mat.opacity = masterAlpha;
     }
@@ -111,11 +116,15 @@ export function BloodHitEffect() {
         >
           <planeGeometry args={[1, 1]} />
           <meshBasicMaterial
-            color="#ff1828"
+            map={texture}
+            color={0xffffff}
             transparent
             opacity={0}
-            blending={AdditiveBlending}
             depthWrite={false}
+            // Normal alpha blending — the PNG already carries the red color +
+            // alpha mask. Additive would wash it pink.
+            blending={NormalBlending}
+            alphaTest={0.02}
           />
         </mesh>
       ))}

@@ -35,7 +35,7 @@ export const FLASH_SCREEN_ALPHA = 0.25;     // peak white-flash overlay opacity 
 export const FLASH_SCREEN_DURATION_MS = 50; // how long the white screen flash lasts
 
 /** Old-school blood splatter — radial red shards on champion hit. */
-export const BLOOD_SHARD_COUNT = 20;        // number of radial blood streaks
-export const BLOOD_DURATION_MS = 550;       // total lifetime of the splatter
-export const BLOOD_MAX_LENGTH = 1.6;        // world-unit length of the longest shard at peak
-export const BLOOD_BASE_HEIGHT = 1.0;       // splatter centered around this Y above the ground
+export const BLOOD_SHARD_COUNT = 30;        // number of radial blood streaks
+export const BLOOD_DURATION_MS = 420;       // total lifetime of the splatter
+export const BLOOD_MAX_LENGTH = 1.85;       // world-unit length of the longest shard at peak
+export const BLOOD_BASE_HEIGHT = 10.0;       // splatter centered around this Y above the ground

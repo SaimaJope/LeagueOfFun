@@ -1,5 +1,6 @@
 import { Vector3, type Camera } from "three";
 import type { Vec3 } from "@/types/game";
+import { publicAsset } from "@/game/assets/publicPath";
 
 const Q_CAST_SFX = [
   "/assets/sounds/Q1.mp3",
@@ -142,7 +143,7 @@ function loadBuffer(path: string, ctx: AudioContext) {
   const cached = bufferCache.get(path);
   if (cached) return cached;
 
-  const promise = fetch(path)
+  const promise = fetch(publicAsset(path))
     .then((res) => {
       if (!res.ok) throw new Error(`Failed to load audio ${path}`);
       return res.arrayBuffer();

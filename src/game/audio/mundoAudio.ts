@@ -1,4 +1,5 @@
 import type { Vec3 } from "@/types/game";
+import { publicAsset } from "@/game/assets/publicPath";
 
 const MUNDO_Q = "/assets/sounds/mundo/mundo_q.mp3";
 const MUNDO_Q_IMPACT = "/assets/sounds/mundo/mundo_q_impact.mp3";
@@ -61,7 +62,7 @@ async function playAt(path: string, _position: Vec3, volume: number) {
 function loadBuffer(path: string, ctx: AudioContext) {
   const cached = bufferCache.get(path);
   if (cached) return cached;
-  const promise = fetch(path)
+  const promise = fetch(publicAsset(path))
     .then((res) => {
       if (!res.ok) throw new Error(`Failed to load audio ${path}`);
       return res.arrayBuffer();

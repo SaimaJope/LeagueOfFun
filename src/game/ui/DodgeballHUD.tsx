@@ -3,6 +3,7 @@ import { useAssetStore } from "@/stores/assetStore";
 import { useCleaverStore } from "@/stores/cleaverStore";
 import { useFlashStore } from "@/stores/flashStore";
 import type { IconAssetConfig } from "@/game/config/assets.config";
+import { publicAsset } from "@/game/assets/publicPath";
 
 function useNow(intervalMs = 100) {
   const [, setT] = useState(0);
@@ -123,7 +124,7 @@ function IconImage({ icon, ready }: { icon: IconAssetConfig; ready: boolean }) {
   }
   return (
     <img
-      src={icon.path}
+      src={publicAsset(icon.path)}
       alt={icon.name}
       onError={() => setFailed(true)}
       style={{ width: "100%", height: "100%", objectFit: "contain", opacity: ready ? 1 : 0.4 }}

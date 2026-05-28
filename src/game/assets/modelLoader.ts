@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { AnimationClip, Group } from "three";
+import { publicAsset } from "@/game/assets/publicPath";
 
 export interface LoadedModel {
   scene: Group;
@@ -22,12 +23,13 @@ export function loadModel(path: string): Promise<LoadedModel> {
   const cached = cache.get(path);
   if (cached) return cached;
 
+  const resolved = publicAsset(path);
   const p = new Promise<LoadedModel>((resolve, reject) => {
     const lower = path.toLowerCase();
     if (lower.endsWith(".glb") || lower.endsWith(".gltf")) {
       const loader = new GLTFLoader();
       loader.load(
-        path,
+        resolved,
         (gltf) => {
           const scene = gltf.scene as Group;
           scene.traverse((o: any) => {
@@ -48,7 +50,7 @@ export function loadModel(path: string): Promise<LoadedModel> {
     } else if (lower.endsWith(".fbx")) {
       const loader = new FBXLoader();
       loader.load(
-        path,
+        resolved,
         (fbx) => {
           fbx.traverse((o: any) => {
             if (o.isMesh) {
