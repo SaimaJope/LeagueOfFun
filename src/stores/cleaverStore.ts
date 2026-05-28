@@ -14,6 +14,23 @@ interface CleaverState {
   reset: () => void;
 }
 
+/**
+ * Mutable, non-reactive snapshot of the local cleaver projectile's world state.
+ * CleaverAbility writes to this every frame; the PvP network layer reads it to
+ * broadcast accurate cleaver positions to the opponent.
+ */
+export const cleaverProjectileState = {
+  active: false,
+  phase: "idle" as "idle" | "windup" | "flight",
+  /** World position of the cleaver tip / center this frame. */
+  worldX: 0,
+  worldZ: 0,
+  dirX: 1,
+  dirZ: 0,
+  /** performance.now() when the cast was accepted (Q press time). */
+  startedAt: 0,
+};
+
 export const useCleaverStore = create<CleaverState>((set) => ({
   castingUntil: 0,
   cooldownUntil: 0,

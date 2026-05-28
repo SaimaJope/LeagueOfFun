@@ -2,6 +2,7 @@ import { useState } from "react";
 import { usePvpStore, type WallOrientation } from "@/stores/pvpStore";
 import { chromasForTarget } from "@/stores/chromaStore";
 import { cleanup, hostMatch, joinMatch, send, startMatch } from "@/game/network/peerNetwork";
+import { useChromaStore } from "@/stores/chromaStore";
 
 const MUNDO_SKINS = chromasForTarget("mundo");
 
@@ -44,15 +45,17 @@ export function PvpLobby() {
     });
   }
 
-  function updateHostSkin(id: string) {
-    setHostSkin(id);
+  // "Your skin" — set OWN field only, mirror the pick to the global chroma
+  // store so the local Mundo model renders with it, and tell the peer.
+  function updateOwnSkin(id: string) {
     if (isHost) {
+      setHostSkin(id);
       send({ type: "settings", settings, hostSkin: id, clientSkin });
     } else if (isClient) {
-      // Client's "your skin" — tell the host.
       setClientSkin(id);
       send({ type: "skin", skin: id });
     }
+    useChromaStore.getState().setChroma(id);
   }
 
   return (
@@ -182,7 +185,7 @@ export function PvpLobby() {
             <Setting label="Your skin">
               <SkinPicker
                 value={isHost ? hostSkin : clientSkin}
-                onChange={updateHostSkin}
+                onChange={updateOwnSkin}
               />
             </Setting>
           </div>

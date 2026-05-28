@@ -14,7 +14,7 @@ import { useAssetStore } from "@/stores/assetStore";
 import { useModel } from "@/game/assets/modelLoader";
 import { loadTexture } from "@/game/animation/AnimatedModel";
 import { dummyEntity, playerEntity } from "@/stores/entityStore";
-import { useCleaverStore } from "@/stores/cleaverStore";
+import { cleaverProjectileState, useCleaverStore } from "@/stores/cleaverStore";
 import { useTrainerStore } from "@/stores/trainerStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { opponentEntity } from "@/stores/entityStore";
@@ -131,6 +131,14 @@ export function CleaverAbility() {
         projectileRef.current.rotation.set(0, yaw, 0);
       }
       startCast(now + t.castDelayMs, now + pvpCooldown, yaw);
+      // Snapshot for network broadcast: cleaver is now "live".
+      cleaverProjectileState.active = true;
+      cleaverProjectileState.phase = "windup";
+      cleaverProjectileState.worldX = t.origin[0];
+      cleaverProjectileState.worldZ = t.origin[2];
+      cleaverProjectileState.dirX = dir[0];
+      cleaverProjectileState.dirZ = dir[2];
+      cleaverProjectileState.startedAt = now;
     }
     qWasDownRef.current = qDown;
 
@@ -150,6 +158,9 @@ export function CleaverAbility() {
         t.phase = "flight";
         t.startTime = now;
         endCast();
+        cleaverProjectileState.phase = "flight";
+        cleaverProjectileState.worldX = t.origin[0];
+        cleaverProjectileState.worldZ = t.origin[2];
         if (projectileRef.current) {
           projectileRef.current.visible = true;
           projectileRef.current.position.set(t.origin[0], t.origin[1], t.origin[2]);
@@ -165,6 +176,10 @@ export function CleaverAbility() {
       const pz = t.origin[2] + t.dir[2] * t.distance;
       spinAngleRef.current += SPIN_RATE * dt;
       const yaw = Math.atan2(t.dir[0], t.dir[2]);
+      // Network snapshot — kept fresh every frame so the receiver sees the
+      // cleaver's actual world position, not just the cast origin.
+      cleaverProjectileState.worldX = px;
+      cleaverProjectileState.worldZ = pz;
       if (projectileRef.current) {
         projectileRef.current.position.set(px, t.origin[1], pz);
         projectileRef.current.rotation.set(0, yaw, 0);
@@ -210,6 +225,8 @@ export function CleaverAbility() {
           1,
         );
         t.phase = "idle";
+        cleaverProjectileState.active = false;
+        cleaverProjectileState.phase = "idle";
         if (projectileRef.current) projectileRef.current.visible = false;
         hideGhosts(ghostGroupsRef.current);
         return;
@@ -240,12 +257,18 @@ export function CleaverAbility() {
       }
       if (t.distance >= CLEAVER_RANGE) {
         t.phase = "idle";
+        cleaverProjectileState.active = false;
+        cleaverProjectileState.phase = "idle";
         if (projectileRef.current) projectileRef.current.visible = false;
         hideGhosts(ghostGroupsRef.current);
       }
     } else if (t.phase === "idle") {
       if (projectileRef.current) projectileRef.current.visible = false;
       hideGhosts(ghostGroupsRef.current);
+      if (cleaverProjectileState.active) {
+        cleaverProjectileState.active = false;
+        cleaverProjectileState.phase = "idle";
+      }
     }
   }, -1);
 

@@ -10,6 +10,9 @@ import { useCleaverStore } from "@/stores/cleaverStore";
 import { useFlashStore } from "@/stores/flashStore";
 import { selectedChromaTexturePath, useChromaStore } from "@/stores/chromaStore";
 import { maybePlayMundoMoveQuote } from "@/game/audio/mundoAudio";
+import { useTrainerStore } from "@/stores/trainerStore";
+import { usePvpStore } from "@/stores/pvpStore";
+import { spawnForRole, WALL_THICKNESS } from "@/game/entities/PvpWall";
 import type { ActionKey } from "@/game/animation/clipMatcher";
 import type { Vec3 } from "@/types/game";
 import {
@@ -20,6 +23,8 @@ import {
 } from "@/game/config/dodgeball.config";
 
 const STOP_DISTANCE = 0.1;
+/** Mundo's body half-width for collision against the wall. */
+const PLAYER_BODY_RADIUS = 0.45;
 const MOVE_TURN_RATE = 52; // rad/s; quick visual facing without a one-frame snap
 const Q_FACE_HOLD_MS = 120; // brief but visible throw-facing cue while moving
 const Q_FACE_MOVE_SPEED_MULTIPLIER = 0.7;
@@ -66,9 +71,21 @@ export function MundoPlayer() {
   const qMoveSlowUntilRef = useRef(0);
 
   useEffect(() => {
-    // Reset state when this component mounts (e.g. switching trainers)
-    positionRef.current = [0, 0, 0];
-    rotationYRef.current = 0;
+    // Reset state when this component mounts (e.g. switching trainers).
+    // In PvP, snap to the role's spawn point instead of world origin.
+    let initialPos: Vec3 = [0, 0, 0];
+    let initialFacing = 0;
+    const trainer = useTrainerStore.getState().trainer;
+    if (trainer === "pvp") {
+      const pvp = usePvpStore.getState();
+      if (pvp.role === "host" || pvp.role === "client") {
+        initialPos = spawnForRole(pvp.role, pvp.settings.wallOrientation);
+        // Face toward the arena center (the wall) so casts naturally aim at the enemy side.
+        initialFacing = Math.atan2(-initialPos[0], -initialPos[2]);
+      }
+    }
+    positionRef.current = initialPos;
+    rotationYRef.current = initialFacing;
     hasDestinationRef.current = false;
     forcedFacingAngleRef.current = 0;
     forcedFacingUntilRef.current = 0;
@@ -76,9 +93,9 @@ export function MundoPlayer() {
     lastCastSerialRef.current = 0;
     idleStartedAtRef.current = performance.now();
     nextIdle2AtRef.current = scheduleNextIdle2(performance.now());
-    playerEntity.position = [0, 0, 0];
+    playerEntity.position = initialPos;
     playerEntity.velocity = [0, 0, 0];
-    playerEntity.rotationY = 0;
+    playerEntity.rotationY = initialFacing;
   }, []);
 
   useFrame((_, dt) => {
@@ -171,6 +188,25 @@ export function MundoPlayer() {
     const clamped = clampToCircle(nx, nz, DODGEBALL_ARENA_RADIUS - BOUNDARY_PADDING);
     nx = clamped[0];
     nz = clamped[1];
+    // PvP wall: clamp the player to their own half of the arena. The wall slab
+    // is centered on the perpendicular axis (X for vertical wall, Z for
+    // horizontal), so we only need a one-axis sign-aware barrier per role.
+    if (useTrainerStore.getState().trainer === "pvp") {
+      const pvp = usePvpStore.getState();
+      const ownSpawn = spawnForRole(
+        pvp.role === "client" ? "client" : "host",
+        pvp.settings.wallOrientation,
+      );
+      const barrier = WALL_THICKNESS / 2 + PLAYER_BODY_RADIUS;
+      if (pvp.settings.wallOrientation === "vertical") {
+        // Wall along Z axis at X = 0. Stay on the same side as ownSpawn.
+        if (ownSpawn[0] < 0) nx = Math.min(nx, -barrier);
+        else nx = Math.max(nx, barrier);
+      } else {
+        if (ownSpawn[2] < 0) nz = Math.min(nz, -barrier);
+        else nz = Math.max(nz, barrier);
+      }
+    }
     vx = dt > 0 ? (nx - px) / dt : 0;
     vz = dt > 0 ? (nz - pz) / dt : 0;
     moving = Math.hypot(vx, vz) > 0.03;

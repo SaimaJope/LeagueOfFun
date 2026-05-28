@@ -4,7 +4,7 @@ import type { Group } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { opponentEntity, playerControlState, playerEntity } from "@/stores/entityStore";
-import { useCleaverStore } from "@/stores/cleaverStore";
+import { cleaverProjectileState, useCleaverStore } from "@/stores/cleaverStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { send, subscribe } from "@/game/network/peerNetwork";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
@@ -109,30 +109,23 @@ export function PvpSync() {
     // ─── Broadcast own state ──────────────────────────────────────────────
     if (phase === "playing" && now - lastSentRef.current >= STATE_SEND_INTERVAL_MS) {
       lastSentRef.current = now;
-      const cleaverStore = useCleaverStore.getState();
       const me = role === "host" ? "host" : "client";
       const myHp = usePvpStore.getState().hp[me];
-      // Pull current cleaver — we read directly off the cleaverStore which
-      // doesn't track positions, so we send a coarse summary. Cleaver visuals
-      // are owned by the thrower; the receiver renders from this state.
-      const cleaverActive =
-        cleaverStore.castingUntil > now ||
-        (cleaverStore.cooldownUntil > now && cleaverStore.cooldownUntil - now > 1500);
       send({
         type: "state",
         t: now,
         pos: [playerEntity.position[0], playerEntity.position[2]],
         rotY: playerEntity.rotationY,
         hp: myHp,
-        cleaver: cleaverActive
+        cleaver: cleaverProjectileState.active
           ? {
-              px: playerEntity.position[0],
-              pz: playerEntity.position[2],
-              dirX: Math.sin(cleaverStore.castFaceAngle),
-              dirZ: Math.cos(cleaverStore.castFaceAngle),
+              px: cleaverProjectileState.worldX,
+              pz: cleaverProjectileState.worldZ,
+              dirX: cleaverProjectileState.dirX,
+              dirZ: cleaverProjectileState.dirZ,
               distance: 0,
-              phase: cleaverStore.castingUntil > now ? "windup" : "flight",
-              startedAt: cleaverStore.castingUntil - 250,
+              phase: cleaverProjectileState.phase === "windup" ? "windup" : "flight",
+              startedAt: cleaverProjectileState.startedAt,
             }
           : null,
       });
@@ -141,18 +134,18 @@ export function PvpSync() {
     // ─── Opponent cleaver visual + self-hit detection ─────────────────────
     if (opponentEntity.cleaver && opponentCleaverGroupRef.current) {
       const c = opponentEntity.cleaver;
-      const elapsed = (now - c.castStartedAt) / 1000;
-      const distance = Math.max(0, elapsed * 22); // approx flight speed
-      const cx = c.px + c.dirX * distance;
-      const cz = c.pz + c.dirZ * distance;
+      // Use the broadcast position directly — the thrower updates worldX/Z every
+      // frame on their side so each 40ms snapshot is the actual tip position.
+      const cx = c.px;
+      const cz = c.pz;
       opponentCleaverGroupRef.current.visible = true;
       opponentCleaverGroupRef.current.position.set(cx, 1.0, cz);
       opponentCleaverGroupRef.current.rotation.set(0, Math.atan2(c.dirX, c.dirZ), 0);
 
-      // Hit on self → -1 HP locally.
+      // Hit on self — but only during flight, not windup.
       const sdx = cx - playerEntity.position[0];
       const sdz = cz - playerEntity.position[2];
-      if (Math.hypot(sdx, sdz) <= HIT_RADIUS + CLEAVER_WIDTH) {
+      if (c.phase === "flight" && Math.hypot(sdx, sdz) <= HIT_RADIUS + CLEAVER_WIDTH) {
         const me = role === "host" ? "host" : "client";
         const before = usePvpStore.getState().hp[me];
         if (before > 0) {

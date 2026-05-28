@@ -1,5 +1,19 @@
+import { useEffect, useState } from "react";
 import { usePvpStore } from "@/stores/pvpStore";
 import { cleanup } from "@/game/network/peerNetwork";
+import { useAssetStore } from "@/stores/assetStore";
+import { useCleaverStore } from "@/stores/cleaverStore";
+import { useFlashStore } from "@/stores/flashStore";
+import { AbilityIcon } from "@/game/ui/AbilityIcon";
+
+function useNow(intervalMs = 80) {
+  const [, setT] = useState(0);
+  useEffect(() => {
+    const i = window.setInterval(() => setT((x) => x + 1), intervalMs);
+    return () => window.clearInterval(i);
+  }, [intervalMs]);
+  return performance.now();
+}
 
 /**
  * In-match HUD: per-player HP bars at the top of the screen, plus a winner
@@ -13,7 +27,16 @@ export function PvpHud() {
   const startingHp = usePvpStore((s) => s.settings.startingHp);
   const resetLobby = usePvpStore((s) => s.reset);
 
+  const now = useNow(80);
+  const cleaverCdUntil = useCleaverStore((s) => s.cooldownUntil);
+  const flashCdUntil = useFlashStore((s) => s.cooldownUntil);
+  const cleaverIcon = useAssetStore((s) => s.registry.cleaverIcon);
+  const flashIcon = useAssetStore((s) => s.registry.flashIcon);
+
   if (phase !== "playing" && phase !== "ended") return null;
+
+  const cleaverCdLeft = Math.max(0, cleaverCdUntil - now);
+  const flashCdLeft = Math.max(0, flashCdUntil - now);
 
   const meKey = role === "host" ? "host" : "client";
   const oppKey = role === "host" ? "client" : "host";
@@ -26,6 +49,12 @@ export function PvpHud() {
       <div style={hudWrap}>
         <HpPanel label="You" current={meHp} max={startingHp} color="#5ab9ff" />
         <HpPanel label="Opponent" current={oppHp} max={startingHp} color="#ff7e7e" />
+      </div>
+
+      {/* Ability bar — matches dodgeball look */}
+      <div style={abilityBar}>
+        <AbilityIcon icon={cleaverIcon} cooldownMs={cleaverCdLeft} label="Q Cleaver" />
+        <AbilityIcon icon={flashIcon} cooldownMs={flashCdLeft} label="F Flash" />
       </div>
 
       {phase === "ended" && (
@@ -90,6 +119,20 @@ function HpPanel({
     </div>
   );
 }
+
+const abilityBar: React.CSSProperties = {
+  position: "absolute",
+  bottom: 18,
+  left: "50%",
+  transform: "translateX(-50%)",
+  display: "flex",
+  gap: 16,
+  padding: 12,
+  background: "rgba(15,20,30,0.78)",
+  border: "1px solid #243149",
+  borderRadius: 12,
+  zIndex: 8,
+};
 
 const hudWrap: React.CSSProperties = {
   position: "absolute",
