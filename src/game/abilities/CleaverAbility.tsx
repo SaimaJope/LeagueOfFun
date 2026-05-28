@@ -47,6 +47,11 @@ const SPIN_RATE = 22; // rad/s around one local horizontal tumble axis
 const CLEAVER_FORWARD_ROTATION = new Matrix4().makeRotationX(Math.PI / 2);
 const CLEAVER_DUMMY_HIT_RADIUS = 0.7;
 const MOVING_CAST_SPEED_THRESHOLD = 0.15;
+// Hard safety cap on a single cast. A normal windup + full-range flight is
+// ~1s; if anything leaves the projectile alive past this (a frame stall, a
+// dropped end, a weird state), force it back to idle so it can't get stuck
+// floating in the arena (and stop broadcasting it to the opponent).
+const MAX_CLEAVER_LIFE_MS = 2000;
 
 interface Travel {
   origin: [number, number, number];
@@ -79,6 +84,16 @@ export function CleaverAbility() {
     if (projectileRef.current) projectileRef.current.visible = false;
   }, []);
 
+  // If this component unmounts mid-flight (leaving PvP, rematch swap, etc.),
+  // clear the shared projectile snapshot so PvpSync stops broadcasting a frozen
+  // cleaver that would stick on the opponent's screen.
+  useEffect(() => {
+    return () => {
+      cleaverProjectileState.active = false;
+      cleaverProjectileState.phase = "idle";
+    };
+  }, []);
+
   const travel = useRef<Travel>({
     origin: [0, 0, 0],
     dir: [1, 0, 0],
@@ -97,6 +112,17 @@ export function CleaverAbility() {
     const t = travel.current;
     const store = useCleaverStore.getState();
     const cooldownReady = now >= store.cooldownUntil;
+
+    // Watchdog: kill any cast that has overstayed its welcome so a stuck
+    // projectile self-heals and the player can throw again.
+    if (t.phase !== "idle" && now - t.castStartTime > MAX_CLEAVER_LIFE_MS) {
+      t.phase = "idle";
+      t.hitDummy = false;
+      if (projectileRef.current) projectileRef.current.visible = false;
+      hideGhosts(ghostGroupsRef.current);
+      cleaverProjectileState.active = false;
+      cleaverProjectileState.phase = "idle";
+    }
 
     if (qDown && !qWasDownRef.current && t.phase === "idle" && cooldownReady) {
       const origin: [number, number, number] = [

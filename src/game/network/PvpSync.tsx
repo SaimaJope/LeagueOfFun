@@ -35,6 +35,10 @@ import {
 const STATE_SEND_HZ = 40;
 const STATE_SEND_INTERVAL_MS = 1000 / STATE_SEND_HZ;
 const OPPONENT_CLEAVER_LIFETIME_MS = 4000;
+// The thrower broadcasts the cleaver at ~40 Hz while it's live. If we go this
+// long without a fresh snapshot the throw has ended (or its end packet was
+// dropped), so drop it rather than freeze/extrapolate a stuck blade.
+const OPPONENT_CLEAVER_STALE_MS = 250;
 // Same forward-axis correction the local cleaver bakes into its geometry so the
 // blade lies flat and points along its flight vector (see CleaverAbility).
 const CLEAVER_FORWARD_ROTATION = new Matrix4().makeRotationX(Math.PI / 2);
@@ -197,6 +201,13 @@ export function PvpSync() {
     }
 
     // ─── Opponent cleaver visual ─────────────────────
+    // Drop a cleaver whose snapshots have gone stale (ended / packets lost).
+    if (
+      opponentEntity.cleaver &&
+      now - opponentCleaverSnapAtRef.current > OPPONENT_CLEAVER_STALE_MS
+    ) {
+      opponentEntity.cleaver = null;
+    }
     if (opponentEntity.cleaver && opponentCleaverGroupRef.current) {
       const c = opponentEntity.cleaver;
       // Only show the projectile in flight. During windup the blade is still in

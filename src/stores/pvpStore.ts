@@ -25,7 +25,7 @@ export const DEFAULT_PVP_SETTINGS: PvpSettings = {
   startingHp: 5,
   wallOrientation: "vertical",
   wardCount: 5,
-  wardSize: 0.2,
+  wardSize: 0.55,
 };
 
 interface PvpState {
