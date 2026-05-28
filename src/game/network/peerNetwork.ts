@@ -55,13 +55,29 @@ const JOIN_TIMEOUT_STATUS =
 const PEER_OPTIONS = {
   config: {
     iceServers: [
-      // STUN servers (discover public IP)
+      // STUN first — lets most peers connect directly (cheapest path).
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
-      // No TURN servers for now: STUN-only. Works same-network and on most
-      // home NATs. Add a TURN server (with valid username/credential) later
-      // for guaranteed cross-network relay (strict/symmetric NAT, cellular).
+      // TURN relay fallback for strict/symmetric NAT + cellular, where a direct
+      // P2P channel can't form. Uses Metered's free public "Open Relay" project
+      // (no signup). It's rate-limited and best-effort — if it gets flaky,
+      // swap in your own Metered API-key servers or another TURN provider.
+      {
+        urls: "turn:openrelay.metered.ca:80",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443?transport=tcp",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
     ],
   },
 };
