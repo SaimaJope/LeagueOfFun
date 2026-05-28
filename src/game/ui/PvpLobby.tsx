@@ -194,6 +194,32 @@ export function PvpLobby() {
               />
             </Setting>
 
+            <Setting label={`Wards — ${settings.wardCount}`}>
+              <input
+                type="range"
+                min={0}
+                max={12}
+                step={1}
+                value={settings.wardCount}
+                disabled={!isHost}
+                onChange={(e) => update("wardCount", Number(e.target.value))}
+                style={rangeStyle}
+              />
+            </Setting>
+
+            <Setting label={`Ward size — ${settings.wardSize.toFixed(2)}`}>
+              <input
+                type="range"
+                min={0.05}
+                max={0.8}
+                step={0.01}
+                value={settings.wardSize}
+                disabled={!isHost}
+                onChange={(e) => update("wardSize", Number(e.target.value))}
+                style={rangeStyle}
+              />
+            </Setting>
+
             <Setting label="Wall orientation">
               <div style={{ display: "flex", gap: 6 }}>
                 {(["vertical", "horizontal"] as WallOrientation[]).map((o) => (

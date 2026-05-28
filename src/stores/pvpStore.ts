@@ -12,6 +12,10 @@ export interface PvpSettings {
   /** Each cleaver hit deals 1 damage. 5 = five-hit kill. */
   startingHp: number;
   wallOrientation: WallOrientation;
+  /** How many ward totems line the wall. 0 = none. */
+  wardCount: number;
+  /** Ward totem height as a multiple of the wall height. */
+  wardSize: number;
 }
 
 export const DEFAULT_PVP_SETTINGS: PvpSettings = {
@@ -20,6 +24,8 @@ export const DEFAULT_PVP_SETTINGS: PvpSettings = {
   flashCooldownMs: 20_000,
   startingHp: 5,
   wallOrientation: "vertical",
+  wardCount: 5,
+  wardSize: 0.2,
 };
 
 interface PvpState {

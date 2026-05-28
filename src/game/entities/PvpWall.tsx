@@ -10,10 +10,6 @@ export const WALL_HEIGHT = 1.6;
 export const WALL_HALF_LENGTH = DODGEBALL_ARENA_RADIUS - 0.6;
 export const PVP_WARD_WALL_MODEL = "/assets/models/environment/vision_ward.glb";
 
-const WARD_COUNT = 5;
-// Small totems lining the wall. Roughly 1/7 of the old size — the wards were
-// dwarfing the champions before.
-const WARD_VISUAL_HEIGHT = WALL_HEIGHT * 0.2;
 
 /**
  * Ward fence visual. The orientation flag controls which axis the fence runs along:
@@ -24,20 +20,29 @@ const WARD_VISUAL_HEIGHT = WALL_HEIGHT * 0.2;
  */
 export function PvpWall() {
   const orientation = usePvpStore((s) => s.settings.wallOrientation);
+  const wardCount = usePvpStore((s) => s.settings.wardCount);
+  const wardSize = usePvpStore((s) => s.settings.wardSize);
   const state = useModel(PVP_WARD_WALL_MODEL);
   const isHorizontal = orientation === "horizontal";
+  const count = Math.max(0, Math.round(wardCount));
+  // Ward height in world units, tunable live from the lobby's Ward size slider.
+  const wardHeight = WALL_HEIGHT * wardSize;
+
   const wards = useMemo(() => {
     if (state.status !== "ready") return [];
-    return Array.from({ length: WARD_COUNT }, () => createWardVisual(state.model.scene));
-  }, [state]);
+    return Array.from({ length: count }, () => createWardVisual(state.model.scene));
+  }, [state, count]);
 
   return (
     <group>
       {wards.map((ward, index) => {
-        const along = -WALL_HALF_LENGTH + (WALL_HALF_LENGTH * 2 * index) / (WARD_COUNT - 1);
+        // Spread evenly along the wall; a single ward sits at the centre.
+        const along =
+          count <= 1 ? 0 : -WALL_HALF_LENGTH + (WALL_HALF_LENGTH * 2 * index) / (count - 1);
         const position: [number, number, number] = isHorizontal
           ? [along, 0, 0]
           : [0, 0, along];
+        const scale = wardHeight / Math.max(ward.baseHeight, 0.001);
         return (
           <group
             key={index}
@@ -45,7 +50,7 @@ export function PvpWall() {
             // Turn the ward so its wings run ALONG the wall line (forming a fence)
             // rather than jutting across it.
             rotation={[0, isHorizontal ? 0 : Math.PI / 2, 0]}
-            scale={ward.scale}
+            scale={scale}
           >
             <primitive object={ward.scene} />
           </group>
@@ -95,6 +100,7 @@ function createWardVisual(source: Group) {
 
   return {
     scene,
-    scale: WARD_VISUAL_HEIGHT / Math.max(size.y, 0.001),
+    // Native model height; the component scales this to the desired ward height.
+    baseHeight: size.y,
   };
 }
