@@ -38,6 +38,9 @@ const OPPONENT_CLEAVER_LIFETIME_MS = 4000;
 // Same forward-axis correction the local cleaver bakes into its geometry so the
 // blade lies flat and points along its flight vector (see CleaverAbility).
 const CLEAVER_FORWARD_ROTATION = new Matrix4().makeRotationX(Math.PI / 2);
+// Tumble rate around the blade's local axis — must match CleaverAbility's SPIN_RATE
+// so the opponent's cleaver spins identically to how the thrower sees it.
+const SPIN_RATE = 22; // rad/s
 
 /**
  * Drives the runtime PvP loop inside the Canvas:
@@ -65,7 +68,15 @@ export function PvpSync() {
   const opponentThrowSoundForRef = useRef(0);
 
   const opponentCleaverGroupRef = useRef<Group>(null);
+  const opponentCleaverSpinRef = useRef<Group>(null);
   const opponentCleaverGhostRefs = useRef<Group[]>([]);
+  const opponentCleaverGhostSpinRefs = useRef<Group[]>([]);
+  // performance.now() when the latest in-flight cleaver snapshot arrived; used to
+  // dead-reckon the tip position between the 40 Hz network updates so the blade
+  // glides at full frame rate instead of stepping once per snapshot.
+  const opponentCleaverSnapAtRef = useRef(0);
+  // Accumulated tumble angle for the opponent's cleaver + its trail ghosts.
+  const opponentSpinAngleRef = useRef(0);
   // Apply move-speed multiplier to the local player.
   useEffect(() => {
     playerControlState.movementSpeedMultiplier = moveSpeedMul;
@@ -141,8 +152,9 @@ export function PvpSync() {
           }
         : null;
       if (msg.cleaver) {
-        opponentCleaverActiveUntilRef.current =
-          performance.now() + OPPONENT_CLEAVER_LIFETIME_MS;
+        const at = performance.now();
+        opponentCleaverActiveUntilRef.current = at + OPPONENT_CLEAVER_LIFETIME_MS;
+        opponentCleaverSnapAtRef.current = at;
       }
       // Mirror opponent's authoritative HP back into our store.
       const target = role === "host" ? "client" : "host";
@@ -154,7 +166,7 @@ export function PvpSync() {
     });
   }, [role]);
 
-  useFrame(() => {
+  useFrame((_, dt) => {
     const now = performance.now();
 
     // ─── Broadcast own state ──────────────────────────────────────────────
@@ -187,25 +199,40 @@ export function PvpSync() {
     // ─── Opponent cleaver visual ─────────────────────
     if (opponentEntity.cleaver && opponentCleaverGroupRef.current) {
       const c = opponentEntity.cleaver;
-      // Use the broadcast position directly — the thrower updates worldX/Z every
-      // frame on their side so each 40ms snapshot is the actual tip position.
-      const cx = c.px;
-      const cz = c.pz;
-      const yaw = Math.atan2(c.dirX, c.dirZ);
       // Only show the projectile in flight. During windup the blade is still in
       // Mundo's hand (the throw animation covers that beat); rendering it here
       // made the cleaver pop to the hand before the cast — the "teleport" glitch.
       const inFlight = c.phase === "flight";
       opponentCleaverGroupRef.current.visible = inFlight;
-      opponentCleaverGroupRef.current.position.set(cx, 1.0, cz);
-      opponentCleaverGroupRef.current.rotation.set(0, yaw, 0);
       if (inFlight) {
+        // Dead reckoning: extrapolate the tip along the flight vector from the
+        // last snapshot so the blade moves smoothly every frame, not in 40 Hz
+        // steps. Flight is straight-line at constant speed, so this is exact.
+        const elapsed = Math.max(0, (now - opponentCleaverSnapAtRef.current) / 1000);
+        const cx = c.px + c.dirX * c.speed * elapsed;
+        const cz = c.pz + c.dirZ * c.speed * elapsed;
+        const yaw = Math.atan2(c.dirX, c.dirZ);
+        opponentCleaverGroupRef.current.position.set(cx, 1.0, cz);
+        opponentCleaverGroupRef.current.rotation.set(0, yaw, 0);
+        // Advance + apply the tumble spin (around the blade's local axis).
+        opponentSpinAngleRef.current += SPIN_RATE * dt;
+        if (opponentCleaverSpinRef.current) {
+          opponentCleaverSpinRef.current.rotation.set(opponentSpinAngleRef.current, 0, 0);
+        }
         // Play the release SFX once, the moment this throw enters flight.
         if (c.castStartedAt !== opponentThrowSoundForRef.current) {
           opponentThrowSoundForRef.current = c.castStartedAt;
           playMundoQCast([cx, 1.0, cz]);
         }
-        updateOpponentCleaverGhosts(opponentCleaverGhostRefs.current, c, cx, cz, yaw);
+        updateOpponentCleaverGhosts(
+          opponentCleaverGhostRefs.current,
+          opponentCleaverGhostSpinRefs.current,
+          c,
+          cx,
+          cz,
+          yaw,
+          opponentSpinAngleRef.current,
+        );
       } else {
         hideGroups(opponentCleaverGhostRefs.current);
       }
@@ -225,7 +252,9 @@ export function PvpSync() {
   return (
     <>
       <group ref={opponentCleaverGroupRef} visible={false}>
-        <OpponentCleaverModel skinId={opponentSkinId} />
+        <group ref={opponentCleaverSpinRef}>
+          <OpponentCleaverModel skinId={opponentSkinId} />
+        </group>
       </group>
       {Array.from({ length: CLEAVER_MOTION_BLUR_SAMPLES }).map((_, i) => {
         const alpha = Math.max(
@@ -240,7 +269,13 @@ export function PvpSync() {
             }}
             visible={false}
           >
-            <OpponentCleaverModel skinId={opponentSkinId} ghostAlpha={alpha} />
+            <group
+              ref={(g) => {
+                if (g) opponentCleaverGhostSpinRefs.current[i] = g;
+              }}
+            >
+              <OpponentCleaverModel skinId={opponentSkinId} ghostAlpha={alpha} />
+            </group>
           </group>
         );
       })}
@@ -251,13 +286,16 @@ export function PvpSync() {
 /** Remote cleaver trail helpers and renderer. */
 function updateOpponentCleaverGhosts(
   groups: Group[],
+  spinGroups: Group[],
   cleaver: NonNullable<typeof opponentEntity.cleaver>,
   x: number,
   z: number,
   yaw: number,
+  spinAngle: number,
 ) {
   const speed = cleaver.speed || CLEAVER_SPEED_STANDING;
   const ghostBaseDist = speed * CLEAVER_MOTION_BLUR_STRIDE_MS * 0.001;
+  const ghostSpinStep = SPIN_RATE * CLEAVER_MOTION_BLUR_STRIDE_MS * 0.001;
   for (let i = 0; i < CLEAVER_MOTION_BLUR_SAMPLES; i += 1) {
     const group = groups[i];
     if (!group) continue;
@@ -265,6 +303,9 @@ function updateOpponentCleaverGhosts(
     group.visible = true;
     group.position.set(x - cleaver.dirX * lagDist, 1.0, z - cleaver.dirZ * lagDist);
     group.rotation.set(0, yaw, 0);
+    // Each ghost lags the head by one stride of spin too, so the trail tumbles.
+    const gs = spinGroups[i];
+    if (gs) gs.rotation.set(spinAngle - ghostSpinStep * (i + 1), 0, 0);
   }
 }
 
