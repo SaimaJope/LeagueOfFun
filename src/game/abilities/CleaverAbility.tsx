@@ -246,9 +246,12 @@ export function CleaverAbility() {
               0,
               opponentEntity.position[2],
             ];
+            const pvpRole = usePvpStore.getState().role;
+            const target = pvpRole === "host" ? "client" : "host";
             playMundoHit([px, t.origin[1], pz]);
             useHitEffectStore.getState().trigger(hitAt, 1);
-            send({ type: "hit", at: hitAt });
+            usePvpStore.getState().damage(target, 1);
+            send({ type: "hit", target, at: hitAt });
             t.phase = "idle";
             cleaverProjectileState.active = false;
             cleaverProjectileState.phase = "idle";

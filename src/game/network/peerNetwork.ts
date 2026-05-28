@@ -18,15 +18,16 @@ export type NetMessage =
   | { type: "skin"; skin: string }
   | { type: "start" }
   | { type: "ping"; t: number }
-  | { type: "hit"; at: [number, number, number] }
+  | { type: "hit"; target?: "host" | "client"; at: [number, number, number] }
   /**
-   * Per-player snapshot. Sent ~20 Hz by each peer.
+   * Per-player snapshot. Sent ~40 Hz by each peer.
    * cleaver = null when no projectile is in flight.
    */
   | {
       type: "state";
       t: number;
       pos: [number, number];
+      vel?: [number, number];
       rotY: number;
       hp: number;
       cleaver: null | {
