@@ -50,9 +50,15 @@ const JOIN_TIMEOUT_STATUS =
 const PEER_OPTIONS = {
   config: {
     iceServers: [
+      // STUN servers (discover public IP)
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
+      // TURN servers (relay traffic when direct P2P fails)
+      // Free tier: https://www.metered.ca/tools/openrelay/
+      { urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443?transport=tcp"] },
+      // Fallback TURN server
+      { urls: "turn:numb.viagenie.ca", username: "webrtc@live.com", credential: "webrtcclient" },
     ],
   },
 };
@@ -88,9 +94,10 @@ export function hostMatch(): string {
   peer.on("open", () => {
     store.setRoomCode(code);
     store.setStatus(`Room ${code} - waiting for friend...`);
+    console.log(`[net] Host peer opened with ID: ${id}`);
   });
   peer.on("error", (err) => {
-    console.warn("[net] host error", err);
+    console.error("[net] Host peer error:", err.type, err.message, err);
     store.setRoomCode("");
     store.setPhase("lobby");
     store.setStatus(`Error: ${err.type ?? err.message ?? err}. Click Host to try again.`);
@@ -125,10 +132,11 @@ export function joinMatch(code: string) {
 
   peer = new Peer(PEER_OPTIONS);
   peer.on("open", () => {
+    console.log("[net] Client peer opened, connecting to host...");
     connectToHostPeer(cleanCode);
   });
   peer.on("error", (err) => {
-    console.warn("[net] client error", err);
+    console.error("[net] Client peer error:", err.type, err.message, err);
     if (isPeerUnavailable(err) && scheduleJoinRetry(cleanCode)) return;
     failJoin(`Error: ${err.type ?? err.message ?? err}. Check the code and try again.`);
   });
@@ -161,11 +169,16 @@ function connectToHostPeer(cleanCode: string) {
   const markConnected = () => {
     if (conn !== nextConn) return;
     clearJoinRetry();
+    console.log("[net] Connection established with host");
     store.setStatus("Connected - waiting for host to start.");
     store.setPhase("ready");
   };
   if (nextConn.open) markConnected();
   else nextConn.on("open", markConnected);
+
+  nextConn.on("error", (err) => {
+    console.error("[net] Connection error:", err.type, err.message, err);
+  });
 
   pendingJoinRetry = window.setTimeout(() => {
     pendingJoinRetry = null;
@@ -208,8 +221,10 @@ function isPeerUnavailable(err: any) {
 }
 
 function wireConn(c: DataConnection) {
+  console.log("[net] Wiring connection");
   c.on("data", (data) => {
     const msg = data as NetMessage;
+    console.log("[net] Received message:", msg.type);
     if (msg.type === "settings") {
       const store = usePvpStore.getState();
       store.patchSettings(msg.settings);
@@ -232,6 +247,7 @@ function wireConn(c: DataConnection) {
     for (const l of listeners) l(msg);
   });
   c.on("close", () => {
+    console.log("[net] Connection closed");
     if (conn !== c) return;
     const store = usePvpStore.getState();
     conn = null;
@@ -244,7 +260,7 @@ function wireConn(c: DataConnection) {
     store.setPhase("lobby");
   });
   c.on("error", (err) => {
-    console.warn("[net] conn error", err);
+    console.error("[net] Connection error:", err.type, err.message, err);
     const store = usePvpStore.getState();
     if (store.role === "client" && activeJoinCode && store.phase === "connecting" && isPeerUnavailable(err)) {
       if (scheduleJoinRetry(activeJoinCode)) return;
@@ -254,7 +270,11 @@ function wireConn(c: DataConnection) {
 }
 
 export function send(msg: NetMessage) {
-  if (!conn || !conn.open) return;
+  if (!conn || !conn.open) {
+    console.warn("[net] Cannot send message: connection not open");
+    return;
+  }
+  console.log("[net] Sending message:", msg.type);
   conn.send(msg);
 }
 
