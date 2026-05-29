@@ -1,6 +1,14 @@
 import { useFrame, useLoader } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { SRGBColorSpace, TextureLoader, type Group, type Sprite, type SpriteMaterial } from "three";
+import {
+  AdditiveBlending,
+  SRGBColorSpace,
+  TextureLoader,
+  type Group,
+  type Mesh,
+  type Sprite,
+  type SpriteMaterial,
+} from "three";
 import { publicAsset } from "@/game/assets/publicPath";
 import { usePvpEconomyStore } from "@/stores/pvpEconomyStore";
 import { YOUMUU_DURATION_MS } from "@/game/config/pvpItems";
@@ -31,6 +39,7 @@ export function YoumuuPetals() {
   texture.colorSpace = SRGBColorSpace;
 
   const groupRef = useRef<Group>(null);
+  const glowRef = useRef<Mesh>(null);
   const startRef = useRef(0);
   const wasActiveRef = useRef(false);
 
@@ -43,7 +52,7 @@ export function YoumuuPetals() {
         radius: 0.5 + Math.random() * 0.45,
         baseY: 0.3 + Math.random() * 1.0,
         riseSpeed: 0.25 + Math.random() * 0.35,
-        spin: (Math.random() - 0.5) * 3,
+        spin: (Math.random() < 0.5 ? -1 : 1) * (11 + Math.random() * 9),
         size: 0.22 + Math.random() * 0.14,
         bobPhase: Math.random() * Math.PI * 2,
       })),
@@ -72,6 +81,14 @@ export function YoumuuPetals() {
     const alpha = MAX_OPACITY * fadeIn * fadeOut;
     const elapsed = clock.elapsedTime;
 
+    // Soft purple aura pulsing under the petals.
+    if (glowRef.current) {
+      const pulse = (0.13 + 0.05 * Math.sin(elapsed * 7)) * fadeIn * fadeOut;
+      (glowRef.current.material as any).opacity = pulse;
+      const s = 0.95 + 0.06 * Math.sin(elapsed * 7);
+      glowRef.current.scale.setScalar(s);
+    }
+
     for (const p of petals) {
       const sprite = p.ref.current;
       if (!sprite) continue;
@@ -89,6 +106,17 @@ export function YoumuuPetals() {
 
   return (
     <group ref={groupRef} visible={false}>
+      <mesh ref={glowRef} position={[0, 1, 0]}>
+        <sphereGeometry args={[0.95, 20, 16]} />
+        <meshBasicMaterial
+          color="#9b5cff"
+          transparent
+          opacity={0.13}
+          blending={AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
       {petals.map((p, i) => (
         <sprite
           key={i}
