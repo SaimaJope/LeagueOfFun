@@ -198,6 +198,11 @@ body,
   outline: none;
   border-color: var(--lol-gold-2);
 }
+/* The open dropdown list: dark, readable options (default rendered pale-on-white). */
+.lol-select option {
+  background: #0a1822;
+  color: #f0e6d2;
+}
 
 /* ── Toggle group ─────────────────────────────────────────────── */
 .lol-toggle {
