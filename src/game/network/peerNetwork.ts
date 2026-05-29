@@ -277,6 +277,14 @@ function isPeerUnavailable(err: any) {
 
 function wireConn(c: DataConnection) {
   console.log("[net] Wiring connection");
+  // Diagnostics: surface the underlying WebRTC negotiation. If this reaches
+  // "connected"/"completed" the data channel can form; if it sticks at
+  // "checking" or hits "failed"/"disconnected", ICE can't traverse the two
+  // networks — i.e. the TURN relay isn't doing its job.
+  c.on("iceStateChanged", (state) => {
+    console.log("[net] ICE state:", state);
+  });
+  c.on("open", () => console.log("[net] Data channel OPEN"));
   c.on("data", (data) => {
     const msg = data as NetMessage;
     console.log("[net] Received message:", msg.type);
