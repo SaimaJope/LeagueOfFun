@@ -56,6 +56,9 @@ export function itemDef(id: ItemId): ItemDef {
 export const GOLD_PER_MATCH = 500;
 /** Gold awarded to the killer for each round won (kill). */
 export const GOLD_PER_KILL = 200;
+/** Participation gold both players get each round, win or lose, so everyone
+ *  can keep shopping (more items = more fun). */
+export const GOLD_PER_ROUND = 300;
 
 // ─── Item effect tuning ───────────────────────────────────────────────────────
 export const BOOTS_MS_MULT = 1.15;

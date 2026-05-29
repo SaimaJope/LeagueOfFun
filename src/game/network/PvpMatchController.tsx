@@ -10,6 +10,7 @@ import {
 import {
   COUNTDOWN_MS,
   GOLD_PER_KILL,
+  GOLD_PER_ROUND,
   INTERMISSION_MS,
   SHOP_MS,
 } from "@/game/config/pvpItems";
@@ -49,6 +50,10 @@ export function PvpMatchController() {
     if (!death) return;
     const myRole = s.role === "client" ? "client" : "host";
     const amKiller = death.victim !== myRole;
+
+    // Both players bank participation gold every round so the loser can keep
+    // shopping too. (Each peer awards its own gold.)
+    usePvpEconomyStore.getState().addGold(GOLD_PER_ROUND);
 
     if (amKiller) {
       usePvpEconomyStore.getState().addGold(GOLD_PER_KILL);
