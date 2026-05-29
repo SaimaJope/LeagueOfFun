@@ -1,5 +1,6 @@
 import Peer, { type DataConnection } from "peerjs";
 import { usePvpStore, type PvpSettings, type RoundSnap } from "@/stores/pvpStore";
+import { usePvpEconomyStore } from "@/stores/pvpEconomyStore";
 
 /**
  * Thin PeerJS wrapper. One side hosts and shows a room code, the other side
@@ -270,6 +271,17 @@ function wireConn(c: DataConnection) {
           clientSkin: msg.skin,
         });
       }
+    } else if (msg.type === "round") {
+      // Authoritative round flow from the host. Handled here (not via a
+      // subscribe listener) so it survives cleanup()'s listeners.clear().
+      const snap = msg.snap;
+      const gameStart =
+        snap.phase === "countdown" &&
+        snap.round === 1 &&
+        snap.roundWins.host === 0 &&
+        snap.roundWins.client === 0;
+      if (gameStart) usePvpEconomyStore.getState().resetGame();
+      usePvpStore.getState().applyRoundSnap(snap);
     }
     for (const l of listeners) l(msg);
   });

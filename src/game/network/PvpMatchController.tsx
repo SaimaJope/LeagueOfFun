@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { usePvpStore } from "@/stores/pvpStore";
 import { usePvpEconomyStore } from "@/stores/pvpEconomyStore";
-import { subscribe } from "@/game/network/peerNetwork";
 import {
   hostBeginNextRound,
   hostBeginRound,
@@ -35,23 +34,8 @@ export function PvpMatchController() {
 
   const isHost = role === "host";
 
-  // ─── Apply authoritative snapshots from the host (client side) ─────────────
-  // The host resets its own economy in hostStartGame/hostRematch; the client
-  // mirrors that here BEFORE applying the snapshot, so PvpSync's round-reset
-  // sees the cleared item set (no leftover Warmog HP into a fresh game).
-  useEffect(() => {
-    return subscribe((msg) => {
-      if (msg.type !== "round") return;
-      const snap = msg.snap;
-      const gameStart =
-        snap.phase === "countdown" &&
-        snap.round === 1 &&
-        snap.roundWins.host === 0 &&
-        snap.roundWins.client === 0;
-      if (gameStart) usePvpEconomyStore.getState().resetGame();
-      usePvpStore.getState().applyRoundSnap(snap);
-    });
-  }, []);
+  // Note: incoming round snapshots are applied directly in peerNetwork.wireConn
+  // (so they survive cleanup()'s listeners.clear()), not via a subscribe here.
 
   // ─── React to a resolved death: gold + announcer (both peers) ──────────────
   const reactedDeathRef = useRef(0);
