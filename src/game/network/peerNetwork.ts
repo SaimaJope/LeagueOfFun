@@ -94,25 +94,29 @@ const PEER_OPTIONS = {
       // STUN first — lets most peers connect directly (cheapest path).
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun.relay.metered.ca:80" },
       // TURN relay fallback for strict/symmetric NAT + cellular, where a direct
-      // P2P channel can't form. Uses Metered's free public "Open Relay" project
-      // (no signup). It's rate-limited and best-effort — if it gets flaky,
-      // swap in your own Metered API-key servers or another TURN provider.
+      // P2P channel can't form. Metered free tier (50 GB/mo). The :443?tcp
+      // "turns" entry is the one that punches through restrictive networks.
       {
-        urls: "turn:openrelay.metered.ca:80",
-        username: "openrelayproject",
-        credential: "openrelayproject",
+        urls: "turn:global.relay.metered.ca:80",
+        username: "d9cd8698ce70c89480461e2d",
+        credential: "XkQCa7lRByQhRKuZ",
       },
       {
-        urls: "turn:openrelay.metered.ca:443",
-        username: "openrelayproject",
-        credential: "openrelayproject",
+        urls: "turn:global.relay.metered.ca:80?transport=tcp",
+        username: "d9cd8698ce70c89480461e2d",
+        credential: "XkQCa7lRByQhRKuZ",
       },
       {
-        urls: "turn:openrelay.metered.ca:443?transport=tcp",
-        username: "openrelayproject",
-        credential: "openrelayproject",
+        urls: "turn:global.relay.metered.ca:443",
+        username: "d9cd8698ce70c89480461e2d",
+        credential: "XkQCa7lRByQhRKuZ",
+      },
+      {
+        urls: "turns:global.relay.metered.ca:443?transport=tcp",
+        username: "d9cd8698ce70c89480461e2d",
+        credential: "XkQCa7lRByQhRKuZ",
       },
     ],
   },
