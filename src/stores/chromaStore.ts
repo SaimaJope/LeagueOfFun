@@ -19,6 +19,7 @@ export const CHROMAS: ChromaPreset[] = [
   { id: "hulk_green", name: "Hulk Green", texturePath: "/assets/chromas/Hulk_green.png", target: "mundo", hookGlow: "#6cff63" },
   { id: "hulk_red", name: "Hulk Red", texturePath: "/assets/chromas/Hulk_red.png", target: "mundo", hookGlow: "#ff5f5f" },
   { id: "mundo_basketball", name: "Basketball", texturePath: "/assets/chromas/mundo_basketball.png", target: "mundo", hookGlow: "#ff9f2f" },
+  { id: "mundo_mspaint", name: "MS Paint", texturePath: "/assets/chromas/mundo_mspaint.png", target: "mundo", hookGlow: "#b985ff" },
 ];
 
 interface ChromaState {
