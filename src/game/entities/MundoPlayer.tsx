@@ -1,5 +1,5 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import type { Group } from "three";
 import { useAssetStore } from "@/stores/assetStore";
 import { AnimatedModel } from "@/game/animation/AnimatedModel";
@@ -14,6 +14,7 @@ import { useTrainerStore } from "@/stores/trainerStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { spawnForRole, WALL_THICKNESS } from "@/game/entities/PvpWall";
 import { SlowGlow } from "@/game/entities/SlowGlow";
+import { YoumuuPetals } from "@/game/entities/YoumuuPetals";
 import type { ActionKey } from "@/game/animation/clipMatcher";
 import type { Vec3 } from "@/types/game";
 import {
@@ -408,6 +409,11 @@ export function MundoPlayer() {
         onActionFinished={handleActionFinished}
       />
       {trainer === "pvp" && <SlowGlow active={() => performance.now() < playerEntity.slowedUntil} />}
+      {trainer === "pvp" && (
+        <Suspense fallback={null}>
+          <YoumuuPetals />
+        </Suspense>
+      )}
     </group>
   );
 }

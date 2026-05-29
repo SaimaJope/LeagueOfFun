@@ -28,6 +28,7 @@ import { joinMatch } from "@/game/network/peerNetwork";
 import { usePvpStore } from "@/stores/pvpStore";
 import { publicAsset } from "@/game/assets/publicPath";
 import { playUiClick } from "@/game/audio/uiSounds";
+import { usePvpEconomyStore } from "@/stores/pvpEconomyStore";
 
 export function App() {
   const trainer = useTrainerStore((s) => s.trainer);
@@ -83,6 +84,28 @@ export function App() {
     };
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
+  }, []);
+
+  // Dev mode: tap ArrowUp 3× to unlock (infinite gold); then P toggles the shop.
+  useEffect(() => {
+    let ups = 0;
+    let lastUp = 0;
+    const onKey = (e: KeyboardEvent) => {
+      const econ = usePvpEconomyStore.getState();
+      if (e.code === "ArrowUp") {
+        const now = performance.now();
+        ups = now - lastUp < 1500 ? ups + 1 : 1;
+        lastUp = now;
+        if (ups >= 3) {
+          ups = 0;
+          econ.enableDev();
+        }
+      } else if (e.code === "KeyP" && econ.dev) {
+        econ.toggleDevShop();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   return (

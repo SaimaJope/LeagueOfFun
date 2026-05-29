@@ -53,7 +53,7 @@ export function itemDef(id: ItemId): ItemDef {
 
 // ─── Economy ────────────────────────────────────────────────────────────────
 /** Gold each player starts the game with. */
-export const GOLD_PER_MATCH = 300;
+export const GOLD_PER_MATCH = 500;
 /** Gold awarded to the killer for each round won (kill). */
 export const GOLD_PER_KILL = 200;
 
@@ -64,7 +64,7 @@ export const FROZEN_MALLET_SLOW_MULT = 0.5;
 export const FROZEN_MALLET_SLOW_MS = 1000;
 export const YOUMUU_MS_MULT = 1.35;
 export const YOUMUU_DURATION_MS = 4000;
-export const YOUMUU_COOLDOWN_MS = 6000; // not specified by design — chosen default.
+export const YOUMUU_COOLDOWN_MS = 15_000;
 
 // ─── Round flow timing ────────────────────────────────────────────────────────
 /** First side to this many round wins takes the game (race to 3). */

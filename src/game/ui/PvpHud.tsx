@@ -26,6 +26,7 @@ export function PvpHud() {
   const resetLobby = usePvpStore((s) => s.reset);
 
   const gold = usePvpEconomyStore((s) => s.gold);
+  const dev = usePvpEconomyStore((s) => s.dev);
   const owned = usePvpEconomyStore((s) => s.owned);
   const ownsYoumuu = usePvpEconomyStore((s) => s.owned.youmuu);
   const youmuuReadyAt = usePvpEconomyStore((s) => s.youmuuReadyAt);
@@ -83,8 +84,8 @@ export function PvpHud() {
 
       {/* Gold */}
       <div className="lol-panel" style={goldChip}>
-        <span className="lol-label">Gold</span>
-        <span className="lol-hp-count" style={{ color: "var(--lol-gold-1)", fontSize: 15 }}>{gold}</span>
+        <span className="lol-label">{dev ? "Gold (DEV)" : "Gold"}</span>
+        <span className="lol-hp-count" style={{ color: "var(--lol-gold-1)", fontSize: 15 }}>{dev ? "∞" : gold}</span>
       </div>
 
       {/* Ability + item bar */}

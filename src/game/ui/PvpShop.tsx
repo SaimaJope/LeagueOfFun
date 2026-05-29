@@ -16,9 +16,13 @@ export function PvpShop() {
   const gold = usePvpEconomyStore((s) => s.gold);
   const owned = usePvpEconomyStore((s) => s.owned);
   const buy = usePvpEconomyStore((s) => s.buy);
+  const sell = usePvpEconomyStore((s) => s.sell);
+  const dev = usePvpEconomyStore((s) => s.dev);
+  const devShopOpen = usePvpEconomyStore((s) => s.devShopOpen);
   const now = useNow(120);
 
-  if (phase !== "shop") return null;
+  const realShop = phase === "shop";
+  if (!realShop && !(dev && devShopOpen)) return null;
 
   const secondsLeft = Math.max(0, Math.ceil((SHOP_MS - (now - startedAt)) / 1000));
 
@@ -27,20 +31,33 @@ export function PvpShop() {
       <div className="lol-panel" style={panel}>
         <div style={header}>
           <div className="lol-title" style={{ fontSize: 20 }}>
-            Shop
+            Shop{dev ? " — DEV" : ""}
           </div>
           <div className="lol-chip" style={{ fontSize: 15, color: "var(--lol-gold-1)" }}>
-            {gold} g
+            {dev ? "∞" : `${gold} g`}
           </div>
-          <div className="lol-label">Match begins in {secondsLeft}s</div>
+          <div className="lol-label">
+            {realShop
+              ? `Match begins in ${secondsLeft}s`
+              : "Press P to close • right-click to sell"}
+          </div>
         </div>
         <hr className="lol-divider" style={{ margin: "12px 0" }} />
         <div style={grid}>
           {PVP_ITEMS.map((item) => {
             const isOwned = owned[item.id as ItemId];
-            const affordable = gold >= item.cost;
+            const affordable = dev || gold >= item.cost;
             return (
-              <div key={item.id} className="lol-panel" style={card}>
+              <div
+                key={item.id}
+                className="lol-panel"
+                style={card}
+                onContextMenu={(e) => {
+                  if (!dev) return;
+                  e.preventDefault();
+                  if (isOwned) sell(item.id as ItemId);
+                }}
+              >
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <ItemIcon id={item.id as ItemId} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -60,14 +77,20 @@ export function PvpShop() {
                   data-no-click-sound="true"
                   className={`lol-btn${affordable && !isOwned ? " lol-btn-primary" : ""}`}
                   style={{ width: "100%", padding: "8px 10px", fontSize: 13, marginTop: 12 }}
-                  disabled={isOwned}
+                  disabled={isOwned && !dev}
                   onClick={() => {
                     if (isOwned) return;
-                    if (gold >= item.cost && buy(item.id, item.cost)) playUiBuy();
+                    if (buy(item.id, item.cost)) playUiBuy();
                     else playUiDenied();
                   }}
                 >
-                  {isOwned ? "Owned" : affordable ? "Buy" : "Not enough gold"}
+                  {isOwned
+                    ? dev
+                      ? "Owned (right-click to sell)"
+                      : "Owned"
+                    : affordable
+                      ? "Buy"
+                      : "Not enough gold"}
                 </button>
               </div>
             );
