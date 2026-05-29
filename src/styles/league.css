@@ -259,3 +259,19 @@
   letter-spacing: 5px;
   text-transform: uppercase;
 }
+
+/* Pre-round countdown number pop. */
+@keyframes lol-count-pop {
+  0% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  18% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+}

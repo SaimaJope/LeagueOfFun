@@ -15,16 +15,24 @@ export interface MutableEntity {
   hitSerial: number;
 }
 
-export const playerEntity: MutableEntity = {
+export const playerEntity: MutableEntity & { slowedUntil: number } = {
   position: [0, 0, 0],
   velocity: [0, 0, 0],
   rotationY: 0,
   alive: true,
   hitSerial: 0,
+  /** performance.now() until which a Frozen-Mallet slow is applied to us. */
+  slowedUntil: 0,
 };
 
 /** Networked PvP opponent — driven by remote-state messages, never by local input. */
 export interface OpponentEntity extends MutableEntity {
+  /** performance.now() when the latest state packet was applied; used to
+   *  dead-reckon position by velocity between the ~40 Hz network updates. */
+  lastUpdate: number;
+  /** Mirrored from the opponent's state packets — true while they're slowed
+   *  (Frozen Mallet), so we can render the chill glow on their champion. */
+  slowed: boolean;
   /** Last known cleaver projectile (mirrored from the network). null = not in flight. */
   cleaver: {
     px: number;
@@ -44,6 +52,8 @@ export const opponentEntity: OpponentEntity = {
   rotationY: 0,
   alive: true,
   hitSerial: 0,
+  lastUpdate: 0,
+  slowed: false,
   cleaver: null,
 };
 

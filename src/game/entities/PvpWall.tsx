@@ -24,7 +24,12 @@ export function PvpWall() {
   const wardSize = usePvpStore((s) => s.settings.wardSize);
   const state = useModel(PVP_WARD_WALL_MODEL);
   const isHorizontal = orientation === "horizontal";
-  const count = Math.max(0, Math.round(wardCount));
+  // Vertical fences run toward the camera's far (rocky) edge, where the end ward
+  // pokes into the border — so cap vertical to 4 wards and pull their span in.
+  const count = isHorizontal
+    ? Math.max(0, Math.round(wardCount))
+    : Math.min(4, Math.max(0, Math.round(wardCount)));
+  const wardSpan = isHorizontal ? WALL_HALF_LENGTH : WALL_HALF_LENGTH * 0.7;
   // Ward height in world units, tunable live from the lobby's Ward size slider.
   const wardHeight = WALL_HEIGHT * wardSize;
 
@@ -38,7 +43,7 @@ export function PvpWall() {
       {wards.map((ward, index) => {
         // Spread evenly along the wall; a single ward sits at the centre.
         const along =
-          count <= 1 ? 0 : -WALL_HALF_LENGTH + (WALL_HALF_LENGTH * 2 * index) / (count - 1);
+          count <= 1 ? 0 : -wardSpan + (wardSpan * 2 * index) / (count - 1);
         const position: [number, number, number] = isHorizontal
           ? [along, 0, 0]
           : [0, 0, along];

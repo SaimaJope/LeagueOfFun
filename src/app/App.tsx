@@ -6,6 +6,11 @@ import { DodgeballHUD } from "@/game/ui/DodgeballHUD";
 import { FlashScreenOverlay } from "@/game/ui/FlashScreenOverlay";
 import { PvpLobby } from "@/game/ui/PvpLobby";
 import { PvpHud } from "@/game/ui/PvpHud";
+import { PvpShop } from "@/game/ui/PvpShop";
+import { PvpCountdown } from "@/game/ui/PvpCountdown";
+import { DamageIndicator } from "@/game/ui/DamageIndicator";
+import { DeathFilter } from "@/game/ui/DeathFilter";
+import { PvpMatchController } from "@/game/network/PvpMatchController";
 import { FlashScreenOverlay as PvpFlashScreenOverlay } from "@/game/ui/FlashScreenOverlay";
 import { AssetManager } from "@/game/ui/AssetManager";
 import { Settings } from "@/game/ui/Settings";
@@ -21,6 +26,8 @@ import { useTrainerStore } from "@/stores/trainerStore";
 import { useEffect, useRef } from "react";
 import { joinMatch } from "@/game/network/peerNetwork";
 import { usePvpStore } from "@/stores/pvpStore";
+import { publicAsset } from "@/game/assets/publicPath";
+import { playUiClick } from "@/game/audio/uiSounds";
 
 export function App() {
   const trainer = useTrainerStore((s) => s.trainer);
@@ -51,8 +58,29 @@ export function App() {
     if (usePvpStore.getState().role === "none") joinMatch(code);
   }, [setTrainer]);
 
+  // Play a click sound on any menu button press (movement uses right-click on
+  // the canvas, which isn't a <button>, so it's naturally excluded). Buttons
+  // that play their own sound opt out via [data-no-click-sound].
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const btn = target?.closest("button");
+      if (!btn || btn.disabled || btn.closest("[data-no-click-sound]")) return;
+      playUiClick();
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        cursor: `url(${publicAsset("assets/cursor.png")}), auto`,
+      }}
+    >
       {trainer === "hookTrainer" && <Scene />}
       {trainer === "dodgeball" && <DodgeballScene />}
       {trainer === "pvp" && <PvpScene />}
@@ -75,7 +103,12 @@ export function App() {
       )}
       {trainer === "pvp" && (
         <>
+          <PvpMatchController />
+          <DeathFilter />
+          <DamageIndicator />
           <PvpLobby />
+          <PvpCountdown />
+          <PvpShop />
           <PvpHud />
           <PvpFlashScreenOverlay />
         </>

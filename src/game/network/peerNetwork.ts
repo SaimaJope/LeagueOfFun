@@ -1,5 +1,5 @@
 import Peer, { type DataConnection } from "peerjs";
-import { usePvpStore, type PvpSettings } from "@/stores/pvpStore";
+import { usePvpStore, type PvpSettings, type RoundSnap } from "@/stores/pvpStore";
 
 /**
  * Thin PeerJS wrapper. One side hosts and shows a room code, the other side
@@ -10,9 +10,15 @@ import { usePvpStore, type PvpSettings } from "@/stores/pvpStore";
 export type NetMessage =
   | { type: "settings"; settings: PvpSettings; hostSkin: string; clientSkin: string }
   | { type: "skin"; skin: string }
-  | { type: "start" }
+  | { type: "round"; snap: RoundSnap }
   | { type: "ping"; t: number }
-  | { type: "hit"; target?: "host" | "client"; at: [number, number, number] }
+  | {
+      type: "hit";
+      target?: "host" | "client";
+      at: [number, number, number];
+      /** Frozen Mallet: slow the target for this many ms (omitted = no slow). */
+      slowMs?: number;
+    }
   | {
       type: "flash";
       origin: [number, number, number];
@@ -25,6 +31,10 @@ export type NetMessage =
       vel?: [number, number];
       rotY: number;
       hp: number;
+      /** This player's current max HP (startingHp + Warmog's). */
+      maxHp?: number;
+      /** true while this player is slowed (Frozen Mallet) — drives the glow. */
+      slowed?: boolean;
       cleaver: null | {
         px: number;
         pz: number;
@@ -249,8 +259,6 @@ function wireConn(c: DataConnection) {
       store.patchSettings(msg.settings);
       store.setHostSkin(msg.hostSkin);
       store.setClientSkin(msg.clientSkin);
-    } else if (msg.type === "start") {
-      usePvpStore.getState().setPhase("playing");
     } else if (msg.type === "skin") {
       if (usePvpStore.getState().role === "host") {
         const store = usePvpStore.getState();
@@ -300,13 +308,6 @@ export function send(msg: NetMessage) {
 export function subscribe(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
-}
-
-export function startMatch() {
-  const s = usePvpStore.getState();
-  send({ type: "settings", settings: s.settings, hostSkin: s.hostSkin, clientSkin: s.clientSkin });
-  send({ type: "start" });
-  usePvpStore.getState().setPhase("playing");
 }
 
 export function isConnected() {

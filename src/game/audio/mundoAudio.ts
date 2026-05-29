@@ -37,6 +37,11 @@ export function playMundoDeath(position: Vec3) {
   void playAt(MUNDO_DEATH, position, 1.0);
 }
 
+/** Play a non-positional UI/announcer sound through the shared audio engine. */
+export function playGlobalSound(path: string, volume = 1) {
+  void playAt(path, [0, 0, 0], volume);
+}
+
 export function maybePlayMundoMoveQuote(position: Vec3, now = performance.now()) {
   if (now < nextMoveQuoteAt) return;
   nextMoveQuoteAt = now + randomBetween(MOVE_QUOTE_MIN_COOLDOWN_MS, MOVE_QUOTE_MAX_COOLDOWN_MS);
@@ -75,7 +80,11 @@ function loadBuffer(path: string, ctx: AudioContext) {
     })
     .then((data) => ctx.decodeAudioData(data));
   bufferCache.set(path, promise);
-  promise.catch(() => bufferCache.delete(path));
+  promise.catch(() => {
+    bufferCache.delete(path);
+    // Surface missing/broken audio so it's obvious which file to add.
+    console.warn(`[audio] could not load ${publicAsset(path)} — is the file present?`);
+  });
   return promise;
 }
 

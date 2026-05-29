@@ -2,7 +2,15 @@ import { create } from "zustand";
 
 export type WallOrientation = "horizontal" | "vertical";
 export type PvpRole = "none" | "host" | "client";
-export type PvpPhase = "lobby" | "connecting" | "ready" | "playing" | "ended";
+export type PvpPhase =
+  | "lobby"
+  | "connecting"
+  | "ready"
+  | "countdown"
+  | "playing"
+  | "intermission"
+  | "shop"
+  | "ended";
 
 export interface PvpSettings {
   /** Multiplier on base move speed; 1 = stock, 3 = max. */
@@ -23,10 +31,37 @@ export const DEFAULT_PVP_SETTINGS: PvpSettings = {
   qCooldownMs: 3000,
   flashCooldownMs: 20_000,
   startingHp: 5,
-  wallOrientation: "vertical",
+  wallOrientation: "horizontal",
   wardCount: 5,
   wardSize: 0.55,
 };
+
+/** A death that just resolved a round (drives the announcer + gold on both peers). */
+export interface RoundDeath {
+  victim: "host" | "client";
+  /** This death ended the game (the killer reached the win threshold). */
+  final: boolean;
+  /** This was the first kill of the game (first blood). */
+  firstBlood: boolean;
+}
+
+/**
+ * Authoritative round-flow snapshot. The host computes and broadcasts this on
+ * every phase/round transition; both peers apply it verbatim so the match state
+ * machine stays in lock-step. Economy (gold/items) is intentionally NOT here —
+ * it's tracked locally per peer (see pvpEconomyStore).
+ */
+export interface RoundSnap {
+  round: number;
+  phase: Extract<PvpPhase, "countdown" | "playing" | "intermission" | "shop" | "ended">;
+  roundWins: { host: number; client: number };
+  firstBloodDone: boolean;
+  winner: PvpRole | null;
+  /** Set on the snapshot that resolves a round; null otherwise. */
+  death: RoundDeath | null;
+  /** Monotonic id so peers apply each snapshot (and each death) exactly once. */
+  seq: number;
+}
 
 interface PvpState {
   role: PvpRole;
@@ -40,7 +75,19 @@ interface PvpState {
   hostSkin: string;
   clientSkin: string;
   hp: { host: number; client: number };
+  /** Per-player max HP (startingHp + Warmog's bonus). Mirrored via state packets. */
+  maxHp: { host: number; client: number };
   winner: PvpRole | null;
+
+  // ─── Best-of-three round flow ───────────────────────────────────────────
+  round: number;
+  roundWins: { host: number; client: number };
+  firstBloodDone: boolean;
+  /** Latest resolved death; consumers react when {@link lastDeathSeq} changes. */
+  lastDeath: RoundDeath | null;
+  lastDeathSeq: number;
+  /** performance.now() when the current phase began locally (for UI timers). */
+  phaseStartedAt: number;
 
   setRole: (role: PvpRole) => void;
   setPhase: (phase: PvpPhase) => void;
@@ -50,7 +97,11 @@ interface PvpState {
   setHostSkin: (id: string) => void;
   setClientSkin: (id: string) => void;
   damage: (target: "host" | "client", amount: number) => void;
-  resetMatch: () => void;
+  /** Set this player's own HP (used on round reset to apply per-peer max HP). */
+  setHp: (target: "host" | "client", value: number) => void;
+  setMaxHp: (target: "host" | "client", value: number) => void;
+  /** Apply an authoritative round snapshot from the host. */
+  applyRoundSnap: (snap: RoundSnap) => void;
   reset: () => void;
 }
 
@@ -63,10 +114,17 @@ export const usePvpStore = create<PvpState>((set, get) => ({
   hostSkin: "mundo_default",
   clientSkin: "hulk_green",
   hp: { host: DEFAULT_PVP_SETTINGS.startingHp, client: DEFAULT_PVP_SETTINGS.startingHp },
+  maxHp: { host: DEFAULT_PVP_SETTINGS.startingHp, client: DEFAULT_PVP_SETTINGS.startingHp },
   winner: null,
+  round: 1,
+  roundWins: { host: 0, client: 0 },
+  firstBloodDone: false,
+  lastDeath: null,
+  lastDeathSeq: 0,
+  phaseStartedAt: 0,
 
   setRole: (role) => set({ role }),
-  setPhase: (phase) => set({ phase }),
+  setPhase: (phase) => set({ phase, phaseStartedAt: performance.now() }),
   setRoomCode: (roomCode) => set({ roomCode }),
   setStatus: (status) => set({ status }),
   patchSettings: (patch) =>
@@ -81,26 +139,33 @@ export const usePvpStore = create<PvpState>((set, get) => ({
     }),
   setHostSkin: (id) => set({ hostSkin: id }),
   setClientSkin: (id) => set({ clientSkin: id }),
+  // Damage only clamps HP now. The round controller (host) watches HP for the
+  // 0-hp death and drives round/game resolution via applyRoundSnap.
   damage: (target, amount) =>
+    set((state) => ({
+      hp: { ...state.hp, [target]: Math.max(0, state.hp[target] - amount) },
+    })),
+  setHp: (target, value) =>
+    set((state) => ({ hp: { ...state.hp, [target]: Math.max(0, value) } })),
+  setMaxHp: (target, value) =>
+    set((state) => ({ maxHp: { ...state.maxHp, [target]: Math.max(1, value) } })),
+  applyRoundSnap: (snap) =>
     set((state) => {
-      const next = Math.max(0, state.hp[target] - amount);
-      const hp = { ...state.hp, [target]: next };
-      let winner = state.winner;
-      let phase = state.phase;
-      if (next === 0 && phase === "playing") {
-        winner = target === "host" ? "client" : "host";
-        phase = "ended";
+      const phaseChanged = state.phase !== snap.phase;
+      const next: Partial<PvpState> = {
+        round: snap.round,
+        phase: snap.phase,
+        roundWins: snap.roundWins,
+        firstBloodDone: snap.firstBloodDone,
+        winner: snap.winner,
+      };
+      if (phaseChanged) next.phaseStartedAt = performance.now();
+      if (snap.death && snap.seq > state.lastDeathSeq) {
+        next.lastDeath = snap.death;
+        next.lastDeathSeq = snap.seq;
       }
-      return { hp, winner, phase };
+      return next;
     }),
-  resetMatch: () => {
-    const s = get().settings;
-    set({
-      hp: { host: s.startingHp, client: s.startingHp },
-      winner: null,
-      phase: "playing",
-    });
-  },
   reset: () =>
     set({
       role: "none",
@@ -108,6 +173,12 @@ export const usePvpStore = create<PvpState>((set, get) => ({
       roomCode: "",
       status: "",
       hp: { host: get().settings.startingHp, client: get().settings.startingHp },
+      maxHp: { host: get().settings.startingHp, client: get().settings.startingHp },
       winner: null,
+      round: 1,
+      roundWins: { host: 0, client: 0 },
+      firstBloodDone: false,
+      lastDeath: null,
+      lastDeathSeq: 0,
     }),
 }));

@@ -5,6 +5,7 @@ import { useAssetStore } from "@/stores/assetStore";
 import { AnimatedModel } from "@/game/animation/AnimatedModel";
 import type { ActionKey } from "@/game/animation/clipMatcher";
 import { opponentEntity } from "@/stores/entityStore";
+import { SlowGlow } from "@/game/entities/SlowGlow";
 import { selectedChromaTexturePath } from "@/stores/chromaStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { playMundoDeath } from "@/game/audio/mundoAudio";
@@ -12,6 +13,11 @@ import { playMundoDeath } from "@/game/audio/mundoAudio";
 const POSITION_SMOOTHING = 24;
 const ROTATION_SPEED = 34;
 const MOVE_ANIM_SPEED = 0.12;
+// How far ahead (ms) we dead-reckon the opponent along their last velocity
+// between the ~40 Hz state packets. This cancels the constant 1-packet lag so
+// movement feels responsive; capped so a stall/packet-drop can't fling them off
+// — once packets stop, the target freezes at the last extrapolated point.
+const EXTRAPOLATION_CAP_MS = 120;
 
 /**
  * Render-only opponent in PvP. Mirrors the position/rotation of
@@ -43,7 +49,11 @@ export function OpponentChampion() {
 
   useFrame((_, dt) => {
     if (!ref.current) return;
-    const [x, , z] = opponentEntity.position;
+    // Dead-reckon the target along the last received velocity to erase the
+    // baseline packet lag; clamp the look-ahead so dropped packets don't drift.
+    const ahead = Math.min(performance.now() - opponentEntity.lastUpdate, EXTRAPOLATION_CAP_MS) / 1000;
+    const x = opponentEntity.position[0] + opponentEntity.velocity[0] * ahead;
+    const z = opponentEntity.position[2] + opponentEntity.velocity[2] * ahead;
 
     if (!initializedRef.current) {
       renderXRef.current = x;
@@ -114,6 +124,7 @@ export function OpponentChampion() {
         fallbackColor="#d96b6b"
         materialTexturePath={selectedChromaTexturePath(opponentSkinId, "mundo")}
       />
+      <SlowGlow active={() => opponentEntity.slowed} />
     </group>
   );
 }

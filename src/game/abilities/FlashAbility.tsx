@@ -27,7 +27,12 @@ export function FlashAbility() {
     const fDown = !!inputState.keys["KeyF"];
     const flashStore = useFlashStore.getState();
 
-    if (fDown && !fWasDownRef.current && now >= flashStore.cooldownUntil) {
+    // In PvP, abilities are locked until the round is actually live (post-countdown).
+    const pvpLocked =
+      useTrainerStore.getState().trainer === "pvp" &&
+      usePvpStore.getState().phase !== "playing";
+
+    if (!pvpLocked && fDown && !fWasDownRef.current && now >= flashStore.cooldownUntil) {
       const origin: [number, number, number] = [
         playerEntity.position[0],
         0,

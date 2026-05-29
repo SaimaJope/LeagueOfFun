@@ -1,7 +1,8 @@
 import { Canvas } from "@react-three/fiber";
 import { IsoCamera } from "@/game/camera/IsoCamera";
-import { DodgeballArena } from "@/game/entities/DodgeballArena";
+import { MundoPvpArena } from "@/game/entities/MundoPvpArena";
 import { PvpWall, spawnForRole } from "@/game/entities/PvpWall";
+import { PVP_SKY_COLOR, SkyHaze } from "@/game/entities/SkyHaze";
 import { useInput } from "@/game/input/useInput";
 import { usePvpStore } from "@/stores/pvpStore";
 import { MundoPlayer } from "@/game/entities/MundoPlayer";
@@ -20,43 +21,51 @@ export function PvpScene() {
   const hostSpawn = spawnForRole("host", orientation);
   const clientSpawn = spawnForRole("client", orientation);
 
-  // Once the match starts, hide the spawn markers and let the actual champions
-  // take over. Before that we just show the arena + wall + spawn dots.
-  const playing = phase === "playing" || phase === "ended";
+  // Once the match starts (countdown onward), hide the spawn markers and let the
+  // actual champions take over. Before that we just show arena + wall + spawn dots.
+  const inMatch =
+    phase === "countdown" ||
+    phase === "playing" ||
+    phase === "intermission" ||
+    phase === "shop" ||
+    phase === "ended";
 
   return (
     <Canvas
-      shadows
+      shadows="soft"
       dpr={[1, 1.5]}
       camera={{ position: [0, 18, 11], fov: 42, near: 0.1, far: 200 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
-      <color attach="background" args={["#0b0d12"]} />
-      <fog attach="fog" args={["#0b0d12", 30, 60]} />
+      <color attach="background" args={[PVP_SKY_COLOR]} />
+      <fog attach="fog" args={[PVP_SKY_COLOR, 20, 70]} />
       <ambientLight intensity={0.6} />
       <directionalLight
         position={[8, 16, 5]}
         intensity={1.2}
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
         shadow-camera-left={-15}
         shadow-camera-right={15}
         shadow-camera-top={15}
         shadow-camera-bottom={-15}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.02}
       />
       <IsoCamera />
-      <DodgeballArena />
+      <SkyHaze />
+      <MundoPvpArena />
       <PvpWall />
 
-      {!playing && (
+      {!inMatch && (
         <>
           <SpawnMarker position={hostSpawn} color="#5ab9ff" />
           <SpawnMarker position={clientSpawn} color="#ff7e7e" />
         </>
       )}
 
-      {playing && (
+      {inMatch && (
         <>
           <MundoPlayer />
           <OpponentChampion />

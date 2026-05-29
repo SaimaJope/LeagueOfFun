@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { usePvpStore, type WallOrientation } from "@/stores/pvpStore";
 import { chromasForTarget } from "@/stores/chromaStore";
-import { cleanup, hostMatch, joinMatch, send, startMatch } from "@/game/network/peerNetwork";
+import { cleanup, hostMatch, joinMatch, send } from "@/game/network/peerNetwork";
+import { hostStartGame } from "@/game/network/pvpMatch";
+import { playUiAccept } from "@/game/audio/uiSounds";
 import { useChromaStore } from "@/stores/chromaStore";
 
 const MUNDO_SKINS = chromasForTarget("mundo");
@@ -27,7 +29,8 @@ export function PvpLobby() {
     resetLobby();
   }
 
-  if (phase === "playing") return null;
+  // The lobby is only visible before a match starts.
+  if (phase !== "lobby" && phase !== "connecting" && phase !== "ready") return null;
 
   const isHost = role === "host";
   const isClient = role === "client";
@@ -100,7 +103,14 @@ export function PvpLobby() {
             Host a room and share the invite link with a friend, or join with a code.
           </p>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="lol-btn lol-btn-primary" onClick={() => hostMatch()}>
+            <button
+              data-no-click-sound="true"
+              className="lol-btn lol-btn-primary"
+              onClick={() => {
+                playUiAccept();
+                hostMatch();
+              }}
+            >
               Host a room
             </button>
           </div>
@@ -252,9 +262,13 @@ export function PvpLobby() {
 
           {canStart && (
             <button
+              data-no-click-sound="true"
               className="lol-btn lol-btn-primary"
               style={{ marginTop: 18, width: "100%", fontSize: 15, padding: "12px 16px" }}
-              onClick={() => startMatch()}
+              onClick={() => {
+                playUiAccept();
+                hostStartGame();
+              }}
             >
               Start match
             </button>

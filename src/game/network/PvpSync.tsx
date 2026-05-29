@@ -16,10 +16,20 @@ import { useModel } from "@/game/assets/modelLoader";
 import { dummyEntities, opponentEntity, playerControlState, playerEntity } from "@/stores/entityStore";
 import { cleaverProjectileState, useCleaverStore } from "@/stores/cleaverStore";
 import { usePvpStore } from "@/stores/pvpStore";
+import { usePvpEconomyStore } from "@/stores/pvpEconomyStore";
 import { send, subscribe } from "@/game/network/peerNetwork";
+import { inputState } from "@/game/input/useInput";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
 import { useOpponentFlashStore } from "@/stores/opponentFlashStore";
 import { playMundoHit, playMundoFlash, playMundoQCast } from "@/game/audio/mundoAudio";
+import { playYoumuuActivate } from "@/game/audio/announcer";
+import {
+  BOOTS_MS_MULT,
+  YOUMUU_COOLDOWN_MS,
+  YOUMUU_DURATION_MS,
+  YOUMUU_MS_MULT,
+  FROZEN_MALLET_SLOW_MULT,
+} from "@/game/config/pvpItems";
 import { loadTexture } from "@/game/animation/AnimatedModel";
 import { spawnForRole } from "@/game/entities/PvpWall";
 import { selectedChromaTexturePath } from "@/stores/chromaStore";
@@ -66,6 +76,7 @@ export function PvpSync() {
   const opponentSkinId = role === "host" ? clientSkin : hostSkin;
 
   const lastSentRef = useRef(0);
+  const youmuuKeyDownRef = useRef(false);
   const opponentCleaverActiveUntilRef = useRef(0);
   // castStartedAt of the opponent throw whose release sound we've already played,
   // so the Q cast SFX fires once per throw (on the windup→flight transition).
@@ -81,17 +92,19 @@ export function PvpSync() {
   const opponentCleaverSnapAtRef = useRef(0);
   // Accumulated tumble angle for the opponent's cleaver + its trail ghosts.
   const opponentSpinAngleRef = useRef(0);
-  // Apply move-speed multiplier to the local player.
+
+  // Restore the base move-speed multiplier when leaving the match.
   useEffect(() => {
-    playerControlState.movementSpeedMultiplier = moveSpeedMul;
     return () => {
       playerControlState.movementSpeedMultiplier = 1;
     };
-  }, [moveSpeedMul]);
+  }, []);
 
-  // Reset local + opponent positions to spawn on match start.
+  // Reset local + opponent positions to spawn at the start of each round (when
+  // the pre-round countdown begins). HP is restored to each peer's own max
+  // (startingHp + Warmog's bonus); the opponent's is corrected via packets.
   useEffect(() => {
-    if (phase !== "playing") return;
+    if (phase !== "countdown") return;
     const myRole = role === "host" ? "host" : "client";
     const oppRole = role === "host" ? "client" : "host";
     const mine = spawnForRole(myRole, wallOrientation);
@@ -99,9 +112,11 @@ export function PvpSync() {
     playerEntity.position = mine;
     playerEntity.velocity = [0, 0, 0];
     playerEntity.alive = true;
+    playerEntity.slowedUntil = 0;
     opponentEntity.position = theirs;
     opponentEntity.velocity = [0, 0, 0];
     opponentEntity.alive = true;
+    opponentEntity.slowed = false;
     opponentEntity.cleaver = null;
     for (const dummy of dummyEntities) {
       dummy.alive = false;
@@ -110,10 +125,15 @@ export function PvpSync() {
       dummy.hitSerial = 0;
     }
     useCleaverStore.getState().reset();
-    usePvpStore.setState({
-      hp: { host: startingHp, client: startingHp },
-      winner: null,
-    });
+    // Clear any lingering Youmuu active buff between rounds.
+    usePvpEconomyStore.getState().activateYoumuu(0, 0);
+    const myMax = startingHp + usePvpEconomyStore.getState().bonusHp();
+    const store = usePvpStore.getState();
+    store.setMaxHp(myRole, myMax);
+    store.setHp(myRole, myMax);
+    // Optimistically restore the opponent's bar to their last-known max until
+    // their first round packet arrives.
+    store.setHp(oppRole, store.maxHp[oppRole]);
   }, [phase, role, wallOrientation, startingHp]);
 
   // Subscribe to incoming state from the network.
@@ -126,6 +146,10 @@ export function PvpSync() {
           usePvpStore.getState().damage(me, 1);
           useHitEffectStore.getState().trigger([playerEntity.position[0], 0, playerEntity.position[2]], 1);
           playMundoHit([playerEntity.position[0], 1, playerEntity.position[2]]);
+          // Frozen Mallet: the attacker tags us with a slow on hit.
+          if (msg.slowMs && msg.slowMs > 0) {
+            playerEntity.slowedUntil = performance.now() + msg.slowMs;
+          }
           opponentEntity.cleaver = null;
           if (opponentCleaverGroupRef.current) opponentCleaverGroupRef.current.visible = false;
           hideGroups(opponentCleaverGhostRefs.current);
@@ -143,6 +167,11 @@ export function PvpSync() {
       opponentEntity.position = [msg.pos[0], 0, msg.pos[1]];
       opponentEntity.velocity = [msg.vel?.[0] ?? 0, 0, msg.vel?.[1] ?? 0];
       opponentEntity.rotationY = msg.rotY;
+      opponentEntity.lastUpdate = performance.now();
+      opponentEntity.slowed = !!msg.slowed;
+      if (msg.maxHp) {
+        usePvpStore.getState().setMaxHp(role === "host" ? "client" : "host", msg.maxHp);
+      }
       opponentEntity.cleaver = msg.cleaver
         ? {
             px: msg.cleaver.px,
@@ -160,23 +189,48 @@ export function PvpSync() {
         opponentCleaverActiveUntilRef.current = at + OPPONENT_CLEAVER_LIFETIME_MS;
         opponentCleaverSnapAtRef.current = at;
       }
-      // Mirror opponent's authoritative HP back into our store.
+      // Mirror the opponent's own authoritative HP (each peer owns its own HP;
+      // direct set so round-reset restores show immediately, not just damage).
       const target = role === "host" ? "client" : "host";
-      const current = usePvpStore.getState().hp[target];
-      if (current !== msg.hp) {
-        const delta = current - msg.hp;
-        if (delta > 0) usePvpStore.getState().damage(target, delta);
-      }
+      usePvpStore.getState().setHp(target, msg.hp);
     });
   }, [role]);
 
   useFrame((_, dt) => {
     const now = performance.now();
+    const me = role === "host" ? "host" : "client";
+    const econ = usePvpEconomyStore.getState();
+
+    // ─── Youmuu's Ghostblade active (key "1") ─────────────────────────────
+    const youmuuKey = !!inputState.keys["Digit1"];
+    if (
+      youmuuKey &&
+      !youmuuKeyDownRef.current &&
+      phase === "playing" &&
+      econ.owned.youmuu &&
+      now >= econ.youmuuReadyAt
+    ) {
+      econ.activateYoumuu(now + YOUMUU_DURATION_MS, now + YOUMUU_COOLDOWN_MS);
+      playYoumuuActivate();
+    }
+    youmuuKeyDownRef.current = youmuuKey;
+
+    // ─── Effective move-speed multiplier (setting × items × slow) ─────────
+    let mul = moveSpeedMul;
+    if (econ.owned.boots) mul *= BOOTS_MS_MULT;
+    if (now < econ.youmuuActiveUntil) mul *= YOUMUU_MS_MULT;
+    if (now < playerEntity.slowedUntil) mul *= FROZEN_MALLET_SLOW_MULT;
+    playerControlState.movementSpeedMultiplier = mul;
 
     // ─── Broadcast own state ──────────────────────────────────────────────
-    if (phase === "playing" && now - lastSentRef.current >= STATE_SEND_INTERVAL_MS) {
+    if (
+      (phase === "playing" ||
+        phase === "countdown" ||
+        phase === "intermission" ||
+        phase === "shop") &&
+      now - lastSentRef.current >= STATE_SEND_INTERVAL_MS
+    ) {
       lastSentRef.current = now;
-      const me = role === "host" ? "host" : "client";
       const myHp = usePvpStore.getState().hp[me];
       send({
         type: "state",
@@ -185,6 +239,8 @@ export function PvpSync() {
         vel: [playerEntity.velocity[0], playerEntity.velocity[2]],
         rotY: playerEntity.rotationY,
         hp: myHp,
+        maxHp: usePvpStore.getState().maxHp[me],
+        slowed: now < playerEntity.slowedUntil,
         cleaver: cleaverProjectileState.active
           ? {
               px: cleaverProjectileState.worldX,

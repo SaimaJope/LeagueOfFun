@@ -25,6 +25,8 @@ import { aimGroundPoint } from "@/game/input/aimRaycaster";
 import { playMundoHit, playMundoQCast } from "@/game/audio/mundoAudio";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
 import { send } from "@/game/network/peerNetwork";
+import { usePvpEconomyStore } from "@/stores/pvpEconomyStore";
+import { FROZEN_MALLET_SLOW_MS } from "@/game/config/pvpItems";
 import {
   CLEAVER_RANGE,
   CLEAVER_SIZE,
@@ -124,7 +126,12 @@ export function CleaverAbility() {
       cleaverProjectileState.phase = "idle";
     }
 
-    if (qDown && !qWasDownRef.current && t.phase === "idle" && cooldownReady) {
+    // In PvP, Q is locked until the round is live (post-countdown / not shopping).
+    const pvpLocked =
+      useTrainerStore.getState().trainer === "pvp" &&
+      usePvpStore.getState().phase !== "playing";
+
+    if (!pvpLocked && qDown && !qWasDownRef.current && t.phase === "idle" && cooldownReady) {
       const origin: [number, number, number] = [
         playerEntity.position[0],
         CLEAVER_HAND_HEIGHT,
@@ -277,7 +284,11 @@ export function CleaverAbility() {
             playMundoHit([px, t.origin[1], pz]);
             useHitEffectStore.getState().trigger(hitAt, 1);
             usePvpStore.getState().damage(target, 1);
-            send({ type: "hit", target, at: hitAt });
+            // Frozen Mallet: our cleaver slows the enemy on hit.
+            const slowMs = usePvpEconomyStore.getState().owned.frozen_mallet
+              ? FROZEN_MALLET_SLOW_MS
+              : undefined;
+            send({ type: "hit", target, at: hitAt, slowMs });
             t.phase = "idle";
             cleaverProjectileState.active = false;
             cleaverProjectileState.phase = "idle";

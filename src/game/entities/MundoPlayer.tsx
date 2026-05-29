@@ -13,6 +13,7 @@ import { maybePlayMundoMoveQuote, playMundoDeath } from "@/game/audio/mundoAudio
 import { useTrainerStore } from "@/stores/trainerStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { spawnForRole, WALL_THICKNESS } from "@/game/entities/PvpWall";
+import { SlowGlow } from "@/game/entities/SlowGlow";
 import type { ActionKey } from "@/game/animation/clipMatcher";
 import type { Vec3 } from "@/types/game";
 import {
@@ -44,6 +45,8 @@ export function MundoPlayer() {
   const chromaId = useChromaStore((s) => s.selectedId);
   const trainer = useTrainerStore((s) => s.trainer);
   const pvpRole = usePvpStore((s) => s.role);
+  const pvpPhase = usePvpStore((s) => s.phase);
+  const pvpRound = usePvpStore((s) => s.round);
   const hostSkin = usePvpStore((s) => s.hostSkin);
   const clientSkin = usePvpStore((s) => s.clientSkin);
   const localSkinId =
@@ -117,6 +120,29 @@ export function MundoPlayer() {
     playerEntity.rotationY = initialFacing;
   }, []);
 
+  // PvP: snap back to our spawn (and clear the death latch) at the start of each
+  // round, when the pre-round countdown begins.
+  useEffect(() => {
+    if (trainer !== "pvp" || pvpPhase !== "countdown") return;
+    const pvp = usePvpStore.getState();
+    if (pvp.role !== "host" && pvp.role !== "client") return;
+    const spawn = spawnForRole(pvp.role, pvp.settings.wallOrientation);
+    const facing = Math.atan2(-spawn[0], -spawn[2]);
+    positionRef.current = spawn;
+    rotationYRef.current = facing;
+    hasDestinationRef.current = false;
+    deadRef.current = false;
+    setAttackPhaseNow("none");
+    setAction("idle");
+    playerEntity.position = spawn;
+    playerEntity.velocity = [0, 0, 0];
+    playerEntity.rotationY = facing;
+    if (ref.current) {
+      ref.current.position.set(spawn[0], 0, spawn[2]);
+      ref.current.rotation.y = facing;
+    }
+  }, [trainer, pvpPhase, pvpRound]);
+
   useFrame((_, dt) => {
     const now = performance.now();
 
@@ -138,6 +164,19 @@ export function MundoPlayer() {
         playMundoDeath(playerEntity.position);
       }
       if (deadRef.current) return;
+
+      // Freeze movement between rounds: during the pre-round countdown and the
+      // shop window the champion holds at spawn (abilities are locked too).
+      if (pvp.phase !== "playing") {
+        hasDestinationRef.current = false;
+        playerEntity.velocity = [0, 0, 0];
+        if (ref.current) {
+          ref.current.position.set(positionRef.current[0], 0, positionRef.current[2]);
+          ref.current.rotation.y = rotationYRef.current;
+        }
+        setAction((prev) => (prev === "idle" ? prev : "idle"));
+        return;
+      }
     }
 
     // Detect a new Flash: snap the internal position to the teleport destination
@@ -368,6 +407,7 @@ export function MundoPlayer() {
         actionToken={actionToken}
         onActionFinished={handleActionFinished}
       />
+      {trainer === "pvp" && <SlowGlow active={() => performance.now() < playerEntity.slowedUntil} />}
     </group>
   );
 }
