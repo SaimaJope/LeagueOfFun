@@ -38,8 +38,8 @@ export function App() {
     const cursorUrl = publicAsset("assets/cursor.png");
     const root = document.documentElement;
 
-    root.style.setProperty("--app-cursor", `url("${cursorUrl}") 4 2, auto`);
-    root.style.setProperty("--app-cursor-pointer", `url("${cursorUrl}") 4 2, pointer`);
+    root.style.setProperty("--app-cursor", `url("${cursorUrl}") 3 1, auto`);
+    root.style.setProperty("--app-cursor-pointer", `url("${cursorUrl}") 3 1, pointer`);
 
     return () => {
       root.style.removeProperty("--app-cursor");
