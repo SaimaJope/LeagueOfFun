@@ -28,6 +28,9 @@ export const usePreloadStore = create<PreloadState>(() => ({
 
 let started = false;
 
+/** Max time the loading screen blocks before letting the user in regardless. */
+const MAX_PRELOAD_MS = 9000;
+
 export function preloadAll() {
   if (started) return;
   started = true;
@@ -105,7 +108,17 @@ export function preloadAll() {
     return true;
   });
 
-  usePreloadStore.setState({ loaded: 0, total: unique.length, ready: false, errors: [] });
+  // Only visual assets (models + textures) gate the loading screen. Audio is
+  // warmed in the BACKGROUND — decodeAudioData on a pre-gesture AudioContext can
+  // hang on some browsers (Safari/iOS), and we must never let that block load.
+  const blocking = unique.filter((i) => i.kind !== "audio");
+  const audio = unique.filter((i) => i.kind === "audio");
+
+  usePreloadStore.setState({ loaded: 0, total: blocking.length, ready: false, errors: [] });
+
+  const finish = () => {
+    if (!usePreloadStore.getState().ready) usePreloadStore.setState({ ready: true });
+  };
 
   const tick = (path: string, err?: unknown) => {
     const s = usePreloadStore.getState();
@@ -114,24 +127,25 @@ export function preloadAll() {
     usePreloadStore.setState({ loaded, errors, ready: loaded >= s.total });
   };
 
-  for (const item of unique) {
+  for (const item of blocking) {
     if (item.kind === "model") {
       loadModel(item.path)
         .then(() => tick(item.path))
         .catch((e) => tick(item.path, e));
-    } else if (item.kind === "texture") {
-      loadTexture(item.path)
-        .then(() => tick(item.path))
-        .catch((e) => tick(item.path, e));
     } else {
-      // Audio — fetch AND decode into the buffer cache, so the first play
-      // doesn't stutter on decodeAudioData.
-      warmAudioBuffer(item.path)
+      loadTexture(item.path)
         .then(() => tick(item.path))
         .catch((e) => tick(item.path, e));
     }
   }
 
-  // Safety net: if everything errors, never block forever.
-  if (unique.length === 0) usePreloadStore.setState({ ready: true });
+  // Warm audio buffers off the critical path (fire-and-forget).
+  for (const item of audio) {
+    warmAudioBuffer(item.path).catch(() => {});
+  }
+
+  // Hard safety net: never keep the loading screen up longer than this, even if
+  // an asset stalls on a slow connection — remaining assets stream on demand.
+  if (blocking.length === 0) finish();
+  else window.setTimeout(finish, MAX_PRELOAD_MS);
 }
