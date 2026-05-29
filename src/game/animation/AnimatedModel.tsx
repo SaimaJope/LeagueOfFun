@@ -31,7 +31,7 @@ interface Props {
   timeScale?: number;
 }
 
-const ONESHOT: ActionKey[] = ["cast", "hit", "flash", "recall", "death", "pull1", "pull2", "dash", "idle2", "attack", "attackToIdle", "attackIntoRun"];
+const ONESHOT: ActionKey[] = ["cast", "hit", "flash", "recall", "dance", "death", "pull1", "pull2", "dash", "idle2", "attack", "attackToIdle", "attackIntoRun"];
 type ExternalClipMap = Partial<Record<ActionKey, AnimationClip>>;
 
 function fadeDurationFor(action: ActionKey) {

@@ -6,6 +6,7 @@ const MUNDO_Q = "/assets/sounds/mundo/mundo_q.mp3";
 const MUNDO_Q_IMPACT = "/assets/sounds/mundo/mundo_q_impact.mp3";
 const MUNDO_FLASH = "/assets/sounds/mundo/flash.mp3";
 const MUNDO_DEATH = "/assets/sounds/mundo/death.mp3";
+const DANCE = "/assets/sounds/Dance.mp3";
 const WOW = "/assets/sounds/mundo/wow.mp3";
 
 const MOVE_QUOTES = [
@@ -35,6 +36,52 @@ export function playMundoFlash(position: Vec3) {
 
 export function playMundoDeath(position: Vec3) {
   void playAt(MUNDO_DEATH, position, 1.0);
+}
+
+// ─── Dance emote sound (stoppable, restartable for spamming) ─────────────────
+let danceSource: AudioBufferSourceNode | null = null;
+let danceGen = 0;
+
+function killDanceNode() {
+  if (danceSource) {
+    try {
+      danceSource.stop();
+    } catch {
+      /* already stopped */
+    }
+    danceSource = null;
+  }
+}
+
+/** (Re)start the dance music from the top, stopping any prior instance. */
+export async function playDanceSound() {
+  const gen = ++danceGen;
+  killDanceNode();
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === "suspended") await ctx.resume();
+    const buffer = await loadBuffer(DANCE, ctx);
+    if (gen !== danceGen) return; // superseded by a newer press / stop
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.9 * getMasterVolume();
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.onended = () => {
+      if (danceSource === source) danceSource = null;
+    };
+    danceSource = source;
+    source.start();
+  } catch {
+    /* swallow audio failures */
+  }
+}
+
+/** Stop the dance music (on move / re-press / death). */
+export function stopDanceSound() {
+  danceGen += 1;
+  killDanceNode();
 }
 
 /** Play a non-positional UI/announcer sound through the shared audio engine. */

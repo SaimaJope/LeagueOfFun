@@ -6,9 +6,10 @@ import { AnimatedModel } from "@/game/animation/AnimatedModel";
 import type { ActionKey } from "@/game/animation/clipMatcher";
 import { opponentEntity } from "@/stores/entityStore";
 import { SlowGlow } from "@/game/entities/SlowGlow";
+import { opponentDanceControl } from "@/game/entities/danceControl";
 import { selectedChromaTexturePath } from "@/stores/chromaStore";
 import { usePvpStore } from "@/stores/pvpStore";
-import { playMundoDeath } from "@/game/audio/mundoAudio";
+import { playMundoDeath, playDanceSound, stopDanceSound } from "@/game/audio/mundoAudio";
 
 const POSITION_SMOOTHING = 24;
 const ROTATION_SPEED = 34;
@@ -40,6 +41,9 @@ export function OpponentChampion() {
   // Latches once when the opponent dies so the death one-shot + sound fire
   // exactly once; cleared on a rematch when HP is restored.
   const deadRef = useRef(false);
+  // Networked dance (opponent's Ctrl+3 emote / round win).
+  const oppDancingRef = useRef(false);
+  const oppDanceAppliedRef = useRef(0);
   const mundoCfg = useAssetStore((s) => s.registry.mundoPlayerModel);
   const role = usePvpStore((s) => s.role);
   const hostSkin = usePvpStore((s) => s.hostSkin);
@@ -90,11 +94,27 @@ export function OpponentChampion() {
     }
     if (deadRef.current) return;
 
+    // Opponent dance (networked Ctrl+3 emote / round win).
+    if (opponentDanceControl.serial !== oppDanceAppliedRef.current) {
+      oppDanceAppliedRef.current = opponentDanceControl.serial;
+      oppDancingRef.current = true;
+      attackingRef.current = false;
+      setAction("dance");
+      setActionToken((t) => t + 1);
+      void playDanceSound();
+    }
+
+    const speed = Math.hypot(opponentEntity.velocity[0], opponentEntity.velocity[2]);
+
     // Detect a new Q cast: the networked cleaver carries the throw timestamp.
     const cleaver = opponentEntity.cleaver;
     if (cleaver && cleaver.castStartedAt !== lastCastStartedAtRef.current) {
       lastCastStartedAtRef.current = cleaver.castStartedAt;
       attackingRef.current = true;
+      if (oppDancingRef.current) {
+        oppDancingRef.current = false;
+        stopDanceSound();
+      }
       setAction("attack");
       setActionToken((t) => t + 1);
       return;
@@ -103,7 +123,14 @@ export function OpponentChampion() {
     // Hold the attack one-shot until AnimatedModel reports it finished.
     if (attackingRef.current) return;
 
-    const speed = Math.hypot(opponentEntity.velocity[0], opponentEntity.velocity[2]);
+    // Moving cancels the dance.
+    if (oppDancingRef.current && speed > MOVE_ANIM_SPEED) {
+      oppDancingRef.current = false;
+      stopDanceSound();
+    }
+    // Hold the dance pose until it finishes (one-shot) or is cancelled.
+    if (oppDancingRef.current) return;
+
     const desired: ActionKey = speed > MOVE_ANIM_SPEED ? "move" : "idle";
     setAction((prev) => (prev === desired ? prev : desired));
   });
@@ -111,6 +138,8 @@ export function OpponentChampion() {
   const handleActionFinished = (finished: ActionKey) => {
     if (finished === "attack") {
       attackingRef.current = false;
+    } else if (finished === "dance") {
+      oppDancingRef.current = false;
     }
   };
 

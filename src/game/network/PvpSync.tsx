@@ -18,6 +18,7 @@ import { cleaverProjectileState, useCleaverStore } from "@/stores/cleaverStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { usePvpEconomyStore } from "@/stores/pvpEconomyStore";
 import { send, subscribe } from "@/game/network/peerNetwork";
+import { requestOpponentDance } from "@/game/entities/danceControl";
 import { inputState } from "@/game/input/useInput";
 import { useHitEffectStore } from "@/stores/hitEffectStore";
 import { useOpponentFlashStore } from "@/stores/opponentFlashStore";
@@ -161,6 +162,10 @@ export function PvpSync() {
           .getState()
           .trigger(msg.origin, msg.destination, performance.now());
         playMundoFlash(msg.destination);
+        return;
+      }
+      if (msg.type === "dance") {
+        requestOpponentDance();
         return;
       }
       if (msg.type !== "state") return;

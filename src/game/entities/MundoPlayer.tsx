@@ -9,12 +9,14 @@ import { playerEntity, playerControlState, useAimStore } from "@/stores/entitySt
 import { useCleaverStore } from "@/stores/cleaverStore";
 import { useFlashStore } from "@/stores/flashStore";
 import { selectedChromaTexturePath, useChromaStore } from "@/stores/chromaStore";
-import { maybePlayMundoMoveQuote, playMundoDeath } from "@/game/audio/mundoAudio";
+import { maybePlayMundoMoveQuote, playMundoDeath, playDanceSound, stopDanceSound } from "@/game/audio/mundoAudio";
 import { useTrainerStore } from "@/stores/trainerStore";
 import { usePvpStore } from "@/stores/pvpStore";
 import { spawnForRole, WALL_THICKNESS } from "@/game/entities/PvpWall";
 import { SlowGlow } from "@/game/entities/SlowGlow";
 import { YoumuuPetals } from "@/game/entities/YoumuuPetals";
+import { danceControl, requestDance } from "@/game/entities/danceControl";
+import { send } from "@/game/network/peerNetwork";
 import type { ActionKey } from "@/game/animation/clipMatcher";
 import type { Vec3 } from "@/types/game";
 import {
@@ -87,11 +89,35 @@ export function MundoPlayer() {
   const forcedFacingAngleRef = useRef(0);
   const forcedFacingUntilRef = useRef(0);
   const qMoveSlowUntilRef = useRef(0);
+  // Ctrl+3 dance emote. Spammable: each press restarts the clip + music; moving
+  // (or pressing again) stops the current music instance.
+  const dancingRef = useRef(false);
+  const danceSerialRef = useRef(0);
+  const danceAppliedSerialRef = useRef(0);
+  const danceTriggerAppliedRef = useRef(0);
 
   const setAttackPhaseNow = (next: AttackPhase) => {
     attackPhaseRef.current = next;
     setAttackPhase((prev) => (prev === next ? prev : next));
   };
+
+  // Ctrl+3 → dance emote (spammable). The actual start happens in useFrame via
+  // danceControl, so the round-win auto-dance shares the exact same path.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Digit3" || !e.ctrlKey || e.repeat) return;
+      e.preventDefault();
+      if (deadRef.current) return;
+      // In PvP, manual dance only while the round is live (movement locked otherwise).
+      if (useTrainerStore.getState().trainer === "pvp" && usePvpStore.getState().phase !== "playing") return;
+      requestDance();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      stopDanceSound();
+    };
+  }, []);
 
   useEffect(() => {
     // Reset state when this component mounts (e.g. switching trainers).
@@ -133,6 +159,8 @@ export function MundoPlayer() {
     rotationYRef.current = facing;
     hasDestinationRef.current = false;
     deadRef.current = false;
+    dancingRef.current = false;
+    stopDanceSound();
     setAttackPhaseNow("none");
     setAction("idle");
     playerEntity.position = spawn;
@@ -147,6 +175,21 @@ export function MundoPlayer() {
   useFrame((_, dt) => {
     const now = performance.now();
 
+    // Dance request (Ctrl+3 or a round win). Acts like "stop": clears any move
+    // destination so Mundo halts and dances. Restarts the clip + music each time.
+    if (danceControl.serial !== danceTriggerAppliedRef.current) {
+      danceTriggerAppliedRef.current = danceControl.serial;
+      if (!deadRef.current) {
+        hasDestinationRef.current = false;
+        lastMovingAtRef.current = 0;
+        dancingRef.current = true;
+        danceSerialRef.current += 1;
+        void playDanceSound();
+        // Let the opponent see (and hear) us dance.
+        if (useTrainerStore.getState().trainer === "pvp") send({ type: "dance" });
+      }
+    }
+
     // Death (PvP only): when our HP hits 0, play the death one-shot + sound once
     // and freeze — no movement, casting, or facing updates while dead. Cleared
     // automatically on a rematch when HP is restored.
@@ -158,6 +201,8 @@ export function MundoPlayer() {
         deadRef.current = false;
       } else if (!deadRef.current && myHp <= 0) {
         deadRef.current = true;
+        dancingRef.current = false;
+        stopDanceSound();
         playerEntity.velocity = [0, 0, 0];
         hasDestinationRef.current = false;
         setAction("death");
@@ -166,8 +211,8 @@ export function MundoPlayer() {
       }
       if (deadRef.current) return;
 
-      // Freeze movement between rounds: during the pre-round countdown and the
-      // shop window the champion holds at spawn (abilities are locked too).
+      // Freeze movement between rounds: during countdown / shop the champion
+      // holds at spawn. The round winner can still dance here (auto or Ctrl+3).
       if (pvp.phase !== "playing") {
         hasDestinationRef.current = false;
         playerEntity.velocity = [0, 0, 0];
@@ -175,7 +220,12 @@ export function MundoPlayer() {
           ref.current.position.set(positionRef.current[0], 0, positionRef.current[2]);
           ref.current.rotation.y = rotationYRef.current;
         }
-        setAction((prev) => (prev === "idle" ? prev : "idle"));
+        if (dancingRef.current && danceSerialRef.current !== danceAppliedSerialRef.current) {
+          danceAppliedSerialRef.current = danceSerialRef.current;
+          setActionToken((t) => t + 1);
+        }
+        const want: ActionKey = dancingRef.current ? "dance" : "idle";
+        setAction((prev) => (prev === want ? prev : want));
         return;
       }
     }
@@ -221,6 +271,11 @@ export function MundoPlayer() {
     const cleaverState = useCleaverStore.getState();
     if (cleaverState.castSerial !== lastCastSerialRef.current) {
       if (cleaverState.castingUntil > 0 && cleaverState.castingUntil > now) {
+        // Casting cancels a dance.
+        if (dancingRef.current) {
+          dancingRef.current = false;
+          stopDanceSound();
+        }
         const movingCast = hasDestinationRef.current;
         const nextPhase = movingCast ? "attackIntoRun" : "attack";
         setAttackPhaseNow(nextPhase);
@@ -320,6 +375,12 @@ export function MundoPlayer() {
     // clicks don't churn move/idle crossfades.
     const movingForAnim = !stopPressed && (moving || now - lastMovingAtRef.current < IDLE_DEBOUNCE_MS);
 
+    // Moving (or pressing stop) cancels the dance emote and its music.
+    if (dancingRef.current && (moving || hasDestinationRef.current || stopPressed)) {
+      dancingRef.current = false;
+      stopDanceSound();
+    }
+
     // Attack phase overrides any other animation choice. The run-recovery clip
     // must not continue after real movement stops, or Mundo appears to moonwalk.
     const continuingMoveForAttack = !stopPressed && moving && hasDestinationRef.current;
@@ -343,6 +404,11 @@ export function MundoPlayer() {
       nextIdle2AtRef.current = scheduleNextIdle2(now);
     } else if (phase === "attackIntoRun") {
       desired = "attackIntoRun";
+      idle2PlayingRef.current = false;
+      idleStartedAtRef.current = now;
+      nextIdle2AtRef.current = scheduleNextIdle2(now);
+    } else if (dancingRef.current) {
+      desired = "dance";
       idle2PlayingRef.current = false;
       idleStartedAtRef.current = now;
       nextIdle2AtRef.current = scheduleNextIdle2(now);
@@ -370,6 +436,12 @@ export function MundoPlayer() {
       }
     }
 
+    // Each Ctrl+3 press restarts the dance clip, even if already dancing.
+    if (desired === "dance" && danceSerialRef.current !== danceAppliedSerialRef.current) {
+      danceAppliedSerialRef.current = danceSerialRef.current;
+      setActionToken((t) => t + 1);
+    }
+
     setAction((prev) => {
       if (prev === desired) return prev;
       // Bump the action token whenever a one-shot starts so AnimatedModel restarts it.
@@ -395,6 +467,8 @@ export function MundoPlayer() {
       }
     } else if (finished === "attackToIdle" || finished === "attackIntoRun") {
       setAttackPhaseNow("none");
+    } else if (finished === "dance") {
+      dancingRef.current = false;
     }
   };
 

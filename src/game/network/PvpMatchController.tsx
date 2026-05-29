@@ -20,6 +20,7 @@ import {
   announceSlain,
   announceVictory,
 } from "@/game/audio/announcer";
+import { requestDance } from "@/game/entities/danceControl";
 
 /**
  * Non-visual PvP match brain. On the host it runs the round-flow timers and
@@ -48,7 +49,11 @@ export function PvpMatchController() {
     const myRole = s.role === "client" ? "client" : "host";
     const amKiller = death.victim !== myRole;
 
-    if (amKiller) usePvpEconomyStore.getState().addGold(GOLD_PER_KILL);
+    if (amKiller) {
+      usePvpEconomyStore.getState().addGold(GOLD_PER_KILL);
+      // Winner celebrates every round (and the game).
+      requestDance();
+    }
 
     if (death.final) {
       if (amKiller) announceVictory();

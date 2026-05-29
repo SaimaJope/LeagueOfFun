@@ -82,6 +82,7 @@ export function preloadAll() {
     // PvP match audio (announcer, UI, items) so first cast / round / buy is smooth.
     "/assets/sounds/Accept.mp3",
     "/assets/sounds/countdown.mp3",
+    "/assets/sounds/Dance.mp3",
     "/assets/sounds/items/youmuus.ogg",
     "/assets/sounds/ui/69_ui-generic_button_click_01.wav",
     "/assets/sounds/ui/81_ui-store_buy_01.wav",

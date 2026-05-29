@@ -12,6 +12,7 @@ export type NetMessage =
   | { type: "settings"; settings: PvpSettings; hostSkin: string; clientSkin: string }
   | { type: "skin"; skin: string }
   | { type: "round"; snap: RoundSnap }
+  | { type: "dance" }
   | { type: "ping"; t: number }
   | {
       type: "hit";
