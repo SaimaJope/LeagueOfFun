@@ -17,6 +17,37 @@
   --lol-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+html,
+body,
+#root,
+#root > div {
+  cursor: var(--app-cursor, auto);
+}
+
+#root canvas {
+  cursor: var(--app-cursor, auto) !important;
+}
+
+#root button,
+#root input,
+#root select,
+#root textarea,
+#root [role="button"],
+.lol-btn,
+.lol-range,
+.lol-toggle {
+  cursor: var(--app-cursor-pointer, pointer) !important;
+}
+
+#root button:disabled,
+#root input:disabled,
+#root select:disabled,
+#root textarea:disabled,
+.lol-btn:disabled,
+.lol-range:disabled {
+  cursor: var(--app-cursor, auto) !important;
+}
+
 .lol-font {
   font-family: var(--lol-sans);
 }

@@ -34,6 +34,19 @@ export function App() {
   const setTrainer = useTrainerStore((s) => s.setTrainer);
   const autoJoinedRef = useRef(false);
 
+  useEffect(() => {
+    const cursorUrl = publicAsset("assets/cursor.png");
+    const root = document.documentElement;
+
+    root.style.setProperty("--app-cursor", `url("${cursorUrl}") 4 2, auto`);
+    root.style.setProperty("--app-cursor-pointer", `url("${cursorUrl}") 4 2, pointer`);
+
+    return () => {
+      root.style.removeProperty("--app-cursor");
+      root.style.removeProperty("--app-cursor-pointer");
+    };
+  }, []);
+
   // Shareable invite links: opening "…/?join=CODE" drops the friend straight
   // into PvP and auto-connects to the host's room, no code typing required.
   useEffect(() => {
@@ -78,7 +91,6 @@ export function App() {
         position: "relative",
         width: "100%",
         height: "100%",
-        cursor: `url(${publicAsset("assets/cursor.png")}), auto`,
       }}
     >
       {trainer === "hookTrainer" && <Scene />}
