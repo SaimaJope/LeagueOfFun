@@ -64,7 +64,23 @@ const JOIN_RETRY_INTERVAL_MS = 900;
 const JOIN_RETRY_TIMEOUT_MS = 20_000;
 const JOIN_TIMEOUT_STATUS =
   "Error: host room not found. Make sure the host tab says waiting for friend, then retry the code.";
+// Signaling broker. If VITE_PEER_HOST is set (production / .env), we point at
+// our own PeerServer (e.g. on Render) so matchmaking never depends on the
+// flaky free public broker. If it's unset (plain `npm run dev`), we pass no
+// host and PeerJS falls back to its public cloud broker — fine for quick local
+// testing. See server/peer-server.mjs + render.yaml.
+const PEER_SERVER = import.meta.env.VITE_PEER_HOST
+  ? {
+      host: import.meta.env.VITE_PEER_HOST as string,
+      port: Number(import.meta.env.VITE_PEER_PORT ?? 443),
+      path: (import.meta.env.VITE_PEER_PATH as string) ?? "/myapp",
+      // Render terminates TLS at its proxy, so clients connect over wss/https.
+      secure: (import.meta.env.VITE_PEER_SECURE ?? "true") !== "false",
+    }
+  : {};
+
 const PEER_OPTIONS = {
+  ...PEER_SERVER,
   config: {
     iceServers: [
       // STUN first — lets most peers connect directly (cheapest path).

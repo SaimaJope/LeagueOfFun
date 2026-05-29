@@ -1,0 +1,24 @@
+# Render blueprint for the PvP signaling broker.
+#
+# This defines ONLY the PeerJS broker (a small always-on Node web service).
+# Your existing static site deploy is untouched — keep deploying the front-end
+# however you do today; just give it the VITE_PEER_* env vars below at build
+# time so it points here instead of the public PeerJS cloud.
+#
+# To deploy: push this file, then in Render → "New +" → "Blueprint" and pick
+# this repo. After it's live, copy the service URL (e.g.
+# hook-trainer-peer.onrender.com) into your front-end's VITE_PEER_HOST.
+
+services:
+  - type: web
+    name: hook-trainer-peer
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    # PeerServer answers on its configured path, so use it as the health check.
+    healthCheckPath: /myapp
+    envVars:
+      - key: PEER_PATH
+        value: /myapp
