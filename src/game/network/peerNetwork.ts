@@ -60,8 +60,16 @@ let joinRetryDeadline = 0;
 let joinAttempt = 0;
 let activeJoinCode = "";
 
+// How long to wait between retries when the host peer isn't registered on the
+// broker yet (fast — the broker either knows the host or it doesn't).
 const JOIN_RETRY_INTERVAL_MS = 900;
-const JOIN_RETRY_TIMEOUT_MS = 20_000;
+// How long to let a *created* connection finish negotiating before giving up on
+// it and retrying. Cross-network WebRTC (ICE + TURN relay) routinely needs a
+// few seconds, so this must be generous — tearing down at 900ms means a remote
+// connection never has time to open. (LAN opens in <1s, which is why this only
+// bit cross-internet play.)
+const CONNECT_ATTEMPT_TIMEOUT_MS = 8_000;
+const JOIN_RETRY_TIMEOUT_MS = 30_000;
 const JOIN_TIMEOUT_STATUS =
   "Error: host room not found. Make sure the host tab says waiting for friend, then retry the code.";
 // Signaling broker. If VITE_PEER_HOST is set (production / .env), we point at
@@ -235,7 +243,7 @@ function connectToHostPeer(cleanCode: string) {
       nextConn.close();
     } catch {}
     connectToHostPeer(cleanCode);
-  }, JOIN_RETRY_INTERVAL_MS);
+  }, CONNECT_ATTEMPT_TIMEOUT_MS);
 }
 
 function scheduleJoinRetry(cleanCode: string) {
