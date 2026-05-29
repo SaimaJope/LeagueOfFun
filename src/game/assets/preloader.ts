@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { publicAsset } from "@/game/assets/publicPath";
 import { loadModel } from "@/game/assets/modelLoader";
 import { loadTexture } from "@/game/animation/AnimatedModel";
+import { warmAudioBuffer } from "@/game/audio/mundoAudio";
 import { defaultAssetRegistry } from "@/game/config/assets.config";
 import { CHROMAS } from "@/stores/chromaStore";
 
@@ -55,6 +55,7 @@ export function preloadAll() {
     if (c.texturePath) items.push({ kind: "texture", path: c.texturePath });
   }
   items.push({ kind: "texture", path: "/assets/effects/blood_streak.png" });
+  items.push({ kind: "texture", path: "/assets/effects/youmuu_petal.png" });
 
   // Audio files
   const audioPaths = [
@@ -78,6 +79,20 @@ export function preloadAll() {
     "/assets/sounds/mundo/haha.mp3",
     "/assets/sounds/mundo/mundo_quote.mp3",
     "/assets/sounds/mundo/death.mp3",
+    // PvP match audio (announcer, UI, items) so first cast / round / buy is smooth.
+    "/assets/sounds/Accept.mp3",
+    "/assets/sounds/countdown.mp3",
+    "/assets/sounds/items/youmuus.ogg",
+    "/assets/sounds/ui/69_ui-generic_button_click_01.wav",
+    "/assets/sounds/ui/81_ui-store_buy_01.wav",
+    "/assets/sounds/ui/10_scn1_btn_1.wav",
+    "/assets/sounds/announcer/first_blood.ogg",
+    "/assets/sounds/announcer/you_have_been_slaind.ogg",
+    "/assets/sounds/announcer/kill1.ogg",
+    "/assets/sounds/announcer/kill2.ogg",
+    "/assets/sounds/announcer/kill3.ogg",
+    "/assets/sounds/announcer/victory.ogg",
+    "/assets/sounds/announcer/defeat.ogg",
   ];
   for (const p of audioPaths) items.push({ kind: "audio", path: p });
 
@@ -99,7 +114,6 @@ export function preloadAll() {
   };
 
   for (const item of unique) {
-    const url = publicAsset(item.path);
     if (item.kind === "model") {
       loadModel(item.path)
         .then(() => tick(item.path))
@@ -109,9 +123,9 @@ export function preloadAll() {
         .then(() => tick(item.path))
         .catch((e) => tick(item.path, e));
     } else {
-      // Audio — just fetch + decode so the buffer cache is warm.
-      fetch(url)
-        .then((r) => r.arrayBuffer())
+      // Audio — fetch AND decode into the buffer cache, so the first play
+      // doesn't stutter on decodeAudioData.
+      warmAudioBuffer(item.path)
         .then(() => tick(item.path))
         .catch((e) => tick(item.path, e));
     }

@@ -42,6 +42,20 @@ export function playGlobalSound(path: string, volume = 1) {
   void playAt(path, [0, 0, 0], volume);
 }
 
+/**
+ * Preload + decode an audio file into the buffer cache so the first play doesn't
+ * stutter on decodeAudioData. Safe to call before any user gesture (the context
+ * is created suspended; decoding still works). Used by the loading-screen
+ * preloader.
+ */
+export function warmAudioBuffer(path: string): Promise<unknown> {
+  try {
+    return loadBuffer(path, getAudioContext());
+  } catch (e) {
+    return Promise.reject(e);
+  }
+}
+
 export function maybePlayMundoMoveQuote(position: Vec3, now = performance.now()) {
   if (now < nextMoveQuoteAt) return;
   nextMoveQuoteAt = now + randomBetween(MOVE_QUOTE_MIN_COOLDOWN_MS, MOVE_QUOTE_MAX_COOLDOWN_MS);

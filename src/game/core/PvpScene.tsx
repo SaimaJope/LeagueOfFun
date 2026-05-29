@@ -1,4 +1,5 @@
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
+import { useEffect } from "react";
 import { IsoCamera } from "@/game/camera/IsoCamera";
 import { MundoPvpArena } from "@/game/entities/MundoPvpArena";
 import { PvpWall, spawnForRole } from "@/game/entities/PvpWall";
@@ -67,6 +68,7 @@ export function PvpScene() {
 
       {inMatch && (
         <>
+          <ScenePrewarm />
           <MundoPlayer />
           <OpponentChampion />
           <CleaverAbility />
@@ -78,6 +80,45 @@ export function PvpScene() {
       )}
     </Canvas>
   );
+}
+
+/**
+ * Precompiles GPU shader programs for everything currently in the scene —
+ * including the cleaver projectile + motion-blur ghosts, which are mounted but
+ * invisible until a throw (three skips compiling invisible objects on render,
+ * causing the first-cast hitch). Runs once at match start, during the countdown,
+ * so the first Q is smooth. compileAsync uses parallel shader compile when
+ * available to avoid stalling the frame.
+ */
+function ScenePrewarm() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    let cancelled = false;
+    const compile = () => {
+      if (cancelled) return;
+      try {
+        const anyGl = gl as unknown as {
+          compileAsync?: (s: unknown, c: unknown) => Promise<unknown>;
+          compile: (s: unknown, c: unknown) => void;
+        };
+        if (typeof anyGl.compileAsync === "function") void anyGl.compileAsync(scene, camera);
+        else anyGl.compile(scene, camera);
+      } catch {
+        /* best-effort warmup */
+      }
+    };
+    // Two passes: once meshes have mounted, and again after async models settle.
+    const t1 = window.setTimeout(compile, 150);
+    const t2 = window.setTimeout(compile, 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [gl, scene, camera]);
+  return null;
 }
 
 function SpawnMarker({
