@@ -11,6 +11,7 @@ const CLICK = `${UI_DIR}69_ui-generic_button_click_01.wav`;
 const BUY = `${UI_DIR}81_ui-store_buy_01.wav`;
 const DENIED = `${UI_DIR}10_scn1_btn_1.wav`;
 const ACCEPT = "/assets/sounds/Accept.mp3";
+const COUNTDOWN = "/assets/sounds/countdown.mp3";
 
 /** Generic menu button press (not movement clicks). */
 export function playUiClick() {
@@ -30,4 +31,9 @@ export function playUiDenied() {
 /** Big "accept" stinger for hosting a room / starting the match. */
 export function playUiAccept() {
   playGlobalSound(ACCEPT, 0.85);
+}
+
+/** Per-number beep during the pre-round countdown. */
+export function playCountdownTick() {
+  playGlobalSound(COUNTDOWN, 0.8);
 }

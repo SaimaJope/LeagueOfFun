@@ -67,10 +67,10 @@ export const YOUMUU_DURATION_MS = 4000;
 export const YOUMUU_COOLDOWN_MS = 6000; // not specified by design — chosen default.
 
 // ─── Round flow timing ────────────────────────────────────────────────────────
-/** Best-of-three: first side to this many round wins takes the game. */
-export const ROUND_WINS_TO_WIN = 2;
-/** Max rounds in a game. */
-export const MAX_ROUNDS = 3;
+/** First side to this many round wins takes the game (race to 3). */
+export const ROUND_WINS_TO_WIN = 3;
+/** Max rounds in a game (best of 5). */
+export const MAX_ROUNDS = 5;
 /** Pre-round countdown (shows 5→1). */
 export const COUNTDOWN_MS = 5000;
 /** Pause after a death before the shop opens (lets the announcer land). */

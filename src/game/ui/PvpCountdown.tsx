@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { usePvpStore } from "@/stores/pvpStore";
 import { useNow } from "@/game/ui/useNow";
+import { playCountdownTick } from "@/game/audio/uiSounds";
 import { COUNTDOWN_MS } from "@/game/config/pvpItems";
 
 /** Big 5→1 pre-round countdown shown over the arena before each round starts. */
@@ -9,10 +11,24 @@ export function PvpCountdown() {
   const startedAt = usePvpStore((s) => s.phaseStartedAt);
   const now = useNow(80);
 
-  if (phase !== "countdown") return null;
-
+  const isCountdown = phase === "countdown";
   const remaining = Math.max(0, COUNTDOWN_MS - (now - startedAt));
   const count = Math.min(5, Math.max(1, Math.ceil(remaining / 1000)));
+
+  // Beep once per number (5,4,3,2,1).
+  const lastTickRef = useRef(0);
+  useEffect(() => {
+    if (!isCountdown) {
+      lastTickRef.current = 0;
+      return;
+    }
+    if (count !== lastTickRef.current) {
+      lastTickRef.current = count;
+      playCountdownTick();
+    }
+  }, [isCountdown, count]);
+
+  if (!isCountdown) return null;
 
   return (
     <div style={wrap}>
