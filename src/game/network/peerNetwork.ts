@@ -12,6 +12,7 @@ export type NetMessage =
   | { type: "settings"; settings: PvpSettings; hostSkin: string; clientSkin: string }
   | { type: "skin"; skin: string }
   | { type: "round"; snap: RoundSnap }
+  | { type: "ready"; who: "host" | "client"; ready: boolean }
   | { type: "dance" }
   | { type: "ping"; t: number }
   | {
@@ -308,6 +309,10 @@ function wireConn(c: DataConnection) {
           clientSkin: msg.skin,
         });
       }
+    } else if (msg.type === "ready") {
+      // Peer toggled their between-round "ready". Mirror it; the host advances
+      // the round once both sides are ready (see PvpMatchController).
+      usePvpStore.getState().setShopReady(msg.who, msg.ready);
     } else if (msg.type === "round") {
       // Authoritative round flow from the host. Handled here (not via a
       // subscribe listener) so it survives cleanup()'s listeners.clear().

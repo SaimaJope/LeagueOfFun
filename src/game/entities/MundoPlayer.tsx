@@ -128,7 +128,7 @@ export function MundoPlayer() {
     if (trainer === "pvp") {
       const pvp = usePvpStore.getState();
       if (pvp.role === "host" || pvp.role === "client") {
-        initialPos = spawnForRole(pvp.role, pvp.settings.wallOrientation);
+        initialPos = spawnForRole(pvp.role, pvp.settings.wallOrientation, pvp.sidesSwapped);
         // Face toward the arena center (the wall) so casts naturally aim at the enemy side.
         initialFacing = Math.atan2(-initialPos[0], -initialPos[2]);
       }
@@ -153,7 +153,7 @@ export function MundoPlayer() {
     if (trainer !== "pvp" || pvpPhase !== "countdown") return;
     const pvp = usePvpStore.getState();
     if (pvp.role !== "host" && pvp.role !== "client") return;
-    const spawn = spawnForRole(pvp.role, pvp.settings.wallOrientation);
+    const spawn = spawnForRole(pvp.role, pvp.settings.wallOrientation, pvp.sidesSwapped);
     const facing = Math.atan2(-spawn[0], -spawn[2]);
     positionRef.current = spawn;
     rotationYRef.current = facing;
@@ -329,6 +329,7 @@ export function MundoPlayer() {
       const ownSpawn = spawnForRole(
         pvp.role === "client" ? "client" : "host",
         pvp.settings.wallOrientation,
+        pvp.sidesSwapped,
       );
       const barrier = WALL_THICKNESS / 2 + PLAYER_BODY_RADIUS;
       if (pvp.settings.wallOrientation === "vertical") {

@@ -11,10 +11,14 @@ import { ROUND_WINS_TO_WIN, MAX_ROUNDS } from "@/game/config/pvpItems";
  */
 
 let snapSeq = 0;
+// Which spawn arrangement this game uses. Reset on a fresh game, flipped on each
+// rematch so the players trade sides. Rides along on every snapshot so the
+// client mirrors it.
+let sidesSwapped = false;
 
-function emit(partial: Omit<RoundSnap, "seq">) {
+function emit(partial: Omit<RoundSnap, "seq" | "sidesSwapped">) {
   snapSeq += 1;
-  const snap: RoundSnap = { ...partial, seq: snapSeq };
+  const snap: RoundSnap = { ...partial, sidesSwapped, seq: snapSeq };
   usePvpStore.getState().applyRoundSnap(snap);
   send({ type: "round", snap });
 }
@@ -22,6 +26,7 @@ function emit(partial: Omit<RoundSnap, "seq">) {
 /** Re-sync settings/skins, then kick off round 1 with the pre-round countdown. */
 export function hostStartGame() {
   const s = usePvpStore.getState();
+  sidesSwapped = false;
   usePvpEconomyStore.getState().resetGame();
   send({ type: "settings", settings: s.settings, hostSkin: s.hostSkin, clientSkin: s.clientSkin });
   emit({
@@ -98,9 +103,11 @@ export function hostBeginNextRound() {
   });
 }
 
-/** Rematch after a finished game — fresh series from round 1. */
+/** Rematch after a finished game — fresh series from round 1, sides swapped. */
 export function hostRematch() {
   const s = usePvpStore.getState();
+  // Trade sides so P1/P2 alternate left↔right (or top↔bottom) each rematch.
+  sidesSwapped = !sidesSwapped;
   usePvpEconomyStore.getState().resetGame();
   send({ type: "settings", settings: s.settings, hostSkin: s.hostSkin, clientSkin: s.clientSkin });
   emit({

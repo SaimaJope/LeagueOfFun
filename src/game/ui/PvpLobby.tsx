@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { usePvpStore, type WallOrientation } from "@/stores/pvpStore";
+import {
+  usePvpStore,
+  DEFAULT_PVP_SETTINGS,
+  URF_QCD_MS,
+  URF_FLASH_CD_MS,
+  type WallOrientation,
+} from "@/stores/pvpStore";
 import { chromasForTarget } from "@/stores/chromaStore";
 import { cleanup, hostMatch, joinMatch, send } from "@/game/network/peerNetwork";
 import { hostStartGame } from "@/game/network/pvpMatch";
@@ -47,6 +53,23 @@ export function PvpLobby() {
       hostSkin,
       clientSkin,
     });
+  }
+
+  // URF: one-tap preset for low cooldowns (Q 1s, Flash 3s). Toggles back to the
+  // default cooldowns if already on. Host-only, like the other settings.
+  const urfOn =
+    settings.qCooldownMs === URF_QCD_MS && settings.flashCooldownMs === URF_FLASH_CD_MS;
+  function toggleUrf() {
+    if (!isHost) return;
+    const patch = urfOn
+      ? {
+          qCooldownMs: DEFAULT_PVP_SETTINGS.qCooldownMs,
+          flashCooldownMs: DEFAULT_PVP_SETTINGS.flashCooldownMs,
+        }
+      : { qCooldownMs: URF_QCD_MS, flashCooldownMs: URF_FLASH_CD_MS };
+    patchSettings(patch);
+    send({ type: "settings", settings: { ...settings, ...patch }, hostSkin, clientSkin });
+    playUiAccept();
   }
 
   // "Your skin" — set OWN field only, mirror the pick to the global chroma
@@ -157,6 +180,17 @@ export function PvpLobby() {
           <div className="lol-font" style={{ color: "var(--lol-teal-light)", marginBottom: 14, fontSize: 13, letterSpacing: 1 }}>
             {status}
           </div>
+
+          {isHost && (
+            <button
+              data-no-click-sound="true"
+              className={`lol-btn${urfOn ? " lol-btn-primary" : ""}`}
+              style={{ width: "100%", marginBottom: 14, letterSpacing: 2 }}
+              onClick={toggleUrf}
+            >
+              {urfOn ? "⚡ URF MODE: ON (click to reset)" : "⚡ URF MODE (Q 1s • Flash 3s)"}
+            </button>
+          )}
 
           <div style={settingsGrid}>
             <Setting label={`Move speed × ${settings.moveSpeedMul.toFixed(2)}`}>

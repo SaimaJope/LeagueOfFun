@@ -2,7 +2,8 @@ import { usePvpStore } from "@/stores/pvpStore";
 import { usePvpEconomyStore } from "@/stores/pvpEconomyStore";
 import { useNow } from "@/game/ui/useNow";
 import { ItemIcon } from "@/game/ui/ItemIcon";
-import { playUiBuy, playUiDenied } from "@/game/audio/uiSounds";
+import { send } from "@/game/network/peerNetwork";
+import { playUiAccept, playUiBuy, playUiDenied } from "@/game/audio/uiSounds";
 import { PVP_ITEMS, SHOP_MS, type ItemId } from "@/game/config/pvpItems";
 
 /**
@@ -13,6 +14,9 @@ import { PVP_ITEMS, SHOP_MS, type ItemId } from "@/game/config/pvpItems";
 export function PvpShop() {
   const phase = usePvpStore((s) => s.phase);
   const startedAt = usePvpStore((s) => s.phaseStartedAt);
+  const role = usePvpStore((s) => s.role);
+  const shopReady = usePvpStore((s) => s.shopReady);
+  const setShopReady = usePvpStore((s) => s.setShopReady);
   const gold = usePvpEconomyStore((s) => s.gold);
   const owned = usePvpEconomyStore((s) => s.owned);
   const buy = usePvpEconomyStore((s) => s.buy);
@@ -25,6 +29,18 @@ export function PvpShop() {
   if (!realShop && !(dev && devShopOpen)) return null;
 
   const secondsLeft = Math.max(0, Math.ceil((SHOP_MS - (now - startedAt)) / 1000));
+
+  const myWho: "host" | "client" = role === "client" ? "client" : "host";
+  const oppWho: "host" | "client" = myWho === "host" ? "client" : "host";
+  const iAmReady = shopReady[myWho];
+  const oppReady = shopReady[oppWho];
+
+  function toggleReady() {
+    const next = !iAmReady;
+    setShopReady(myWho, next);
+    send({ type: "ready", who: myWho, ready: next });
+    playUiAccept();
+  }
 
   return (
     <div style={overlay}>
@@ -41,6 +57,24 @@ export function PvpShop() {
               ? `Match begins in ${secondsLeft}s`
               : "Press P to close • right-click to sell"}
           </div>
+          {realShop && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span
+                className="lol-label"
+                style={{ color: oppReady ? "var(--lol-teal-light)" : "var(--lol-grey)" }}
+              >
+                {oppReady ? "Opponent ready ✓" : "Opponent not ready"}
+              </span>
+              <button
+                data-no-click-sound="true"
+                className={`lol-btn${iAmReady ? "" : " lol-btn-primary"}`}
+                style={{ padding: "8px 16px", fontSize: 13 }}
+                onClick={toggleReady}
+              >
+                {iAmReady ? "Ready ✓ (cancel)" : "Ready"}
+              </button>
+            </div>
+          )}
         </div>
         <hr className="lol-divider" style={{ margin: "12px 0" }} />
         <div style={grid}>

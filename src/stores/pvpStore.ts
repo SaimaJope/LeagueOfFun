@@ -31,10 +31,14 @@ export const DEFAULT_PVP_SETTINGS: PvpSettings = {
   qCooldownMs: 3000,
   flashCooldownMs: 20_000,
   startingHp: 5,
-  wallOrientation: "horizontal",
+  wallOrientation: "vertical",
   wardCount: 5,
   wardSize: 0.55,
 };
+
+/** URF preset cooldowns — applied by the lobby's URF toggle. */
+export const URF_QCD_MS = 1000;
+export const URF_FLASH_CD_MS = 3000;
 
 /** A death that just resolved a round (drives the announcer + gold on both peers). */
 export interface RoundDeath {
@@ -59,6 +63,8 @@ export interface RoundSnap {
   winner: PvpRole | null;
   /** Set on the snapshot that resolves a round; null otherwise. */
   death: RoundDeath | null;
+  /** When true, P1/P2 spawn sides are flipped (alternates each rematch). */
+  sidesSwapped: boolean;
   /** Monotonic id so peers apply each snapshot (and each death) exactly once. */
   seq: number;
 }
@@ -88,6 +94,10 @@ interface PvpState {
   lastDeathSeq: number;
   /** performance.now() when the current phase began locally (for UI timers). */
   phaseStartedAt: number;
+  /** P1/P2 spawn sides flipped this game (mirrored via round snapshots). */
+  sidesSwapped: boolean;
+  /** Per-player "ready" state in the between-round shop. Both true = skip ahead. */
+  shopReady: { host: boolean; client: boolean };
 
   setRole: (role: PvpRole) => void;
   setPhase: (phase: PvpPhase) => void;
@@ -102,6 +112,7 @@ interface PvpState {
   setMaxHp: (target: "host" | "client", value: number) => void;
   /** Apply an authoritative round snapshot from the host. */
   applyRoundSnap: (snap: RoundSnap) => void;
+  setShopReady: (who: "host" | "client", ready: boolean) => void;
   reset: () => void;
 }
 
@@ -122,6 +133,8 @@ export const usePvpStore = create<PvpState>((set, get) => ({
   lastDeath: null,
   lastDeathSeq: 0,
   phaseStartedAt: 0,
+  sidesSwapped: false,
+  shopReady: { host: false, client: false },
 
   setRole: (role) => set({ role }),
   setPhase: (phase) => set({ phase, phaseStartedAt: performance.now() }),
@@ -158,14 +171,21 @@ export const usePvpStore = create<PvpState>((set, get) => ({
         roundWins: snap.roundWins,
         firstBloodDone: snap.firstBloodDone,
         winner: snap.winner,
+        sidesSwapped: snap.sidesSwapped,
       };
-      if (phaseChanged) next.phaseStartedAt = performance.now();
+      if (phaseChanged) {
+        next.phaseStartedAt = performance.now();
+        // "Ready" is per-shop; clear it on any phase transition.
+        next.shopReady = { host: false, client: false };
+      }
       if (snap.death && snap.seq > state.lastDeathSeq) {
         next.lastDeath = snap.death;
         next.lastDeathSeq = snap.seq;
       }
       return next;
     }),
+  setShopReady: (who, ready) =>
+    set((state) => ({ shopReady: { ...state.shopReady, [who]: ready } })),
   reset: () =>
     set({
       role: "none",
@@ -180,5 +200,7 @@ export const usePvpStore = create<PvpState>((set, get) => ({
       firstBloodDone: false,
       lastDeath: null,
       lastDeathSeq: 0,
+      sidesSwapped: false,
+      shopReady: { host: false, client: false },
     }),
 }));

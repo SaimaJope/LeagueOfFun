@@ -32,6 +32,7 @@ export function PvpMatchController() {
   const phase = usePvpStore((s) => s.phase);
   const round = usePvpStore((s) => s.round);
   const lastDeathSeq = usePvpStore((s) => s.lastDeathSeq);
+  const shopReady = usePvpStore((s) => s.shopReady);
 
   const isHost = role === "host";
 
@@ -87,6 +88,12 @@ export function PvpMatchController() {
     const id = window.setTimeout(hostBeginNextRound, SHOP_MS);
     return () => window.clearTimeout(id);
   }, [isHost, phase, round]);
+
+  // ─── Host: both players hit "Ready" in the shop → skip straight ahead ───────
+  useEffect(() => {
+    if (!isHost || phase !== "shop") return;
+    if (shopReady.host && shopReady.client) hostBeginNextRound();
+  }, [isHost, phase, shopReady]);
 
   // ─── Host: watch HP for the round-ending death ─────────────────────────────
   useEffect(() => {

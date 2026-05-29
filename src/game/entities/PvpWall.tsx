@@ -73,16 +73,22 @@ export function isInsideWall(x: number, z: number, orientation: "horizontal" | "
   return Math.abs(x) <= WALL_THICKNESS / 2 && Math.abs(z) <= WALL_HALF_LENGTH;
 }
 
-/** Spawn position for a role: "host" sits +, "client" sits -, on the wall's perpendicular axis. */
+/**
+ * Spawn position for a role on the wall's perpendicular axis. Normally "host"
+ * sits at the minus side and "client" at the plus side; when {@link swapped} is
+ * true (after a rematch) the two trade places.
+ */
 export function spawnForRole(
   role: "host" | "client",
   orientation: "horizontal" | "vertical",
+  swapped = false,
 ): [number, number, number] {
   const offset = DODGEBALL_ARENA_RADIUS * 0.6;
+  const effectiveRole = swapped ? (role === "host" ? "client" : "host") : role;
   if (orientation === "horizontal") {
-    return [0, 0, role === "host" ? -offset : offset];
+    return [0, 0, effectiveRole === "host" ? -offset : offset];
   }
-  return [role === "host" ? -offset : offset, 0, 0];
+  return [effectiveRole === "host" ? -offset : offset, 0, 0];
 }
 
 function createWardVisual(source: Group) {

@@ -19,8 +19,9 @@ export function PvpScene() {
   useInput(null);
   const phase = usePvpStore((s) => s.phase);
   const orientation = usePvpStore((s) => s.settings.wallOrientation);
-  const hostSpawn = spawnForRole("host", orientation);
-  const clientSpawn = spawnForRole("client", orientation);
+  const sidesSwapped = usePvpStore((s) => s.sidesSwapped);
+  const hostSpawn = spawnForRole("host", orientation, sidesSwapped);
+  const clientSpawn = spawnForRole("client", orientation, sidesSwapped);
 
   // Once the match starts (countdown onward), hide the spawn markers and let the
   // actual champions take over. Before that we just show arena + wall + spawn dots.

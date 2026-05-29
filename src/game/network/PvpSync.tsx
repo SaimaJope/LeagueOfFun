@@ -71,6 +71,7 @@ export function PvpSync() {
   const phase = usePvpStore((s) => s.phase);
   const moveSpeedMul = usePvpStore((s) => s.settings.moveSpeedMul);
   const wallOrientation = usePvpStore((s) => s.settings.wallOrientation);
+  const sidesSwapped = usePvpStore((s) => s.sidesSwapped);
   const startingHp = usePvpStore((s) => s.settings.startingHp);
   const hostSkin = usePvpStore((s) => s.hostSkin);
   const clientSkin = usePvpStore((s) => s.clientSkin);
@@ -108,8 +109,8 @@ export function PvpSync() {
     if (phase !== "countdown") return;
     const myRole = role === "host" ? "host" : "client";
     const oppRole = role === "host" ? "client" : "host";
-    const mine = spawnForRole(myRole, wallOrientation);
-    const theirs = spawnForRole(oppRole, wallOrientation);
+    const mine = spawnForRole(myRole, wallOrientation, sidesSwapped);
+    const theirs = spawnForRole(oppRole, wallOrientation, sidesSwapped);
     playerEntity.position = mine;
     playerEntity.velocity = [0, 0, 0];
     playerEntity.alive = true;
@@ -135,7 +136,7 @@ export function PvpSync() {
     // Optimistically restore the opponent's bar to their last-known max until
     // their first round packet arrives.
     store.setHp(oppRole, store.maxHp[oppRole]);
-  }, [phase, role, wallOrientation, startingHp]);
+  }, [phase, role, wallOrientation, sidesSwapped, startingHp]);
 
   // Subscribe to incoming state from the network.
   useEffect(() => {
